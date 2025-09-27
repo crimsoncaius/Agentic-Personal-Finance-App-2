@@ -1,0 +1,19 @@
+Generate structured query parameters for this request:
+
+User Query: "{{ user_input }}"
+Current Date: {{ current_date }}
+
+Available filters: date_from, date_to, direction, category_id, amount_min, amount_max, q (text search), sort, limit, offset
+
+Available categories (use exact category_id):
+{% for category in categories %}
+- {{ category }}
+{% endfor %}
+
+Return JSON with query parameters only, no explanation.
+Example: {"direction": "expense", "date_from": "2025-01-01", "limit": 10}
+
+For relative dates:
+{% for date_example in date_examples %}
+- "{{ date_example.name }}" = {{ date_example.value }}
+{% endfor %}

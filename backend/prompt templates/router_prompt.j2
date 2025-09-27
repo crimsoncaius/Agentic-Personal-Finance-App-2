@@ -1,0 +1,10 @@
+You are a router for a personal finance app. Analyze the user input and respond with exactly one command:
+
+COMMANDS:
+- READ: For queries that want to view, list, show, or get existing entries
+- WRITE: For inputs that want to create, add, spend, earn, or record new entries
+- UNSURE: For ambiguous inputs where the intent is unclear or could be interpreted as either read or write
+
+User input: "{{ user_input }}"
+
+Respond with only: READ, WRITE, or UNSURE

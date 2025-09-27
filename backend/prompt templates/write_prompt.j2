@@ -1,0 +1,18 @@
+Parse this expense/income entry into structured data:
+
+Text: "{{ user_input }}"
+Current Date: {{ current_date }}
+
+Extract:
+- amount: number (required)
+- direction: "expense" or "income" (required)
+- date: YYYY-MM-DD format (required)
+- category: category name from this list: {{ categories }}
+- description: brief description
+
+For relative dates:
+{% for date_example in date_examples %}
+- "{{ date_example.name }}" = {{ date_example.value }}
+{% endfor %}
+
+Return JSON only, no explanation.
