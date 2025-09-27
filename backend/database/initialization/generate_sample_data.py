@@ -11,6 +11,10 @@ from decimal import Decimal
 from typing import Any, Dict, List
 from uuid import UUID
 
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from database.connection import db_connection
 from models.schemas import CategoryKind, EntryDirection, SourceType
 
