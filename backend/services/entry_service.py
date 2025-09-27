@@ -29,7 +29,6 @@ class EntryService:
         category_id: Optional[UUID] = None,
         description: Optional[str] = None,
         source: str = "manual",
-        parse_confidence: Optional[float] = None,
     ) -> Entry:
         """Create a new entry"""
         # Validate amount
@@ -47,7 +46,6 @@ class EntryService:
             "category_id": str(category_id) if category_id else None,
             "description": description,
             "source": source if isinstance(source, str) else source.value,
-            "parse_confidence": parse_confidence,
         }
 
         result = db_connection.client.table("entry").insert(entry_data).execute()

@@ -39,7 +39,6 @@ async def create_entry_structured(entry: EntryCreateStructured):
             category_id=entry.category_id,
             description=entry.description,
             source=entry.source,
-            parse_confidence=entry.parse_confidence,
         )
 
         # Convert to response format
@@ -53,7 +52,6 @@ async def create_entry_structured(entry: EntryCreateStructured):
             "category": None,  # TODO: Load category data
             "description": created_entry.description,
             "source": created_entry.source,
-            "parse_confidence": created_entry.parse_confidence,
             "created_at": created_entry.created_at,
         }
 
