@@ -4,15 +4,17 @@ Entry service for database operations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from database.connection import db_connection
 from models.schemas import (
     CategoryResponse,
     Entry,
+    EntryDirection,
     EntryQueryParams,
     EntryResponse,
+    SourceType,
     cents_to_dollars,
     dollars_to_cents,
 )
@@ -24,11 +26,11 @@ class EntryService:
     @staticmethod
     async def create_entry(
         amount: Decimal,
-        direction: str,
+        direction: Union[str, "EntryDirection"],
         entry_date: date,
         category_id: Optional[UUID] = None,
         description: Optional[str] = None,
-        source: str = "manual",
+        source: Union[str, "SourceType"] = "manual",
     ) -> Entry:
         """Create a new entry"""
         # Validate amount
@@ -36,16 +38,21 @@ class EntryService:
             raise ValueError("Amount must be positive")
 
         # Validate direction
-        if direction not in ["expense", "income"]:
+        direction_value = (
+            direction.value if isinstance(direction, EntryDirection) else direction
+        )
+        if direction_value not in ["expense", "income"]:
             raise ValueError("Direction must be 'expense' or 'income'")
+
+        source_value = source.value if isinstance(source, SourceType) else source
 
         entry_data = {
             "amount_cents": dollars_to_cents(amount),
-            "direction": direction if isinstance(direction, str) else direction.value,
+            "direction": direction_value,
             "entry_date": entry_date.isoformat(),
             "category_id": str(category_id) if category_id else None,
             "description": description,
-            "source": source if isinstance(source, str) else source.value,
+            "source": source_value,
         }
 
         result = db_connection.client.table("entry").insert(entry_data).execute()

@@ -13,7 +13,7 @@ from jinja2 import Environment, FileSystemLoader, Template
 class PromptManager:
     """Manages prompt templates using Jinja2"""
 
-    def __init__(self, template_dir: str = "prompt templates"):
+    def __init__(self, template_dir: str = "templates"):
         """Initialize the prompt manager with template directory"""
         # Get the backend directory path
         backend_dir = Path(__file__).parent.parent

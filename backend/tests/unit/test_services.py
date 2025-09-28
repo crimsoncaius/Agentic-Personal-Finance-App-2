@@ -13,32 +13,16 @@ from services.category_service import CategoryService
 from services.entry_service import EntryService
 from database.connection import db_connection
 
-pytestmark = pytest.mark.real
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.slow,
+    pytest.mark.db_real,  # Uses real database operations
+    pytest.mark.llm_mock,  # No LLM operations in service tests
+]
 
 
 class TestEntryService:
     """Tests for entry service with actual database"""
-
-    @pytest_asyncio.fixture
-    async def test_data_setup(self):
-        """Set up test data in the database"""
-        # Create test category
-        test_category = {
-            "name": f"Test Category {uuid4().hex[:8]}",
-            "type": "expense",
-            "is_system": True,
-        }
-
-        result = db_connection.client.table("category").insert(test_category).execute()
-        created_category = result.data[0] if result.data else None
-
-        yield {"category": created_category}
-
-        # Cleanup
-        if created_category:
-            db_connection.client.table("category").delete().eq(
-                "id", created_category["id"]
-            ).execute()
 
     @pytest.mark.asyncio
     async def test_create_entry(self, test_data_setup):
@@ -61,15 +45,14 @@ class TestEntryService:
         db_connection.client.table("entry").delete().eq("id", result.id).execute()
 
     @pytest.mark.asyncio
-    async def test_create_entry_with_parse_confidence(self, test_data_setup):
-        """Test real entry creation with parse confidence"""
+    async def test_create_entry_with_nlp_source(self, test_data_setup):
+        """Test real entry creation with NLP source"""
         result = await EntryService.create_entry(
             amount=Decimal("25.50"),
             direction="expense",
             entry_date=date(2025, 1, 15),
             description="NLP parsed expense",
             source="nlp",
-            parse_confidence=0.85,
             category_id=test_data_setup["category"]["id"],
         )
 
@@ -77,7 +60,6 @@ class TestEntryService:
         assert result.direction == "expense"
         assert result.description == "NLP parsed expense"
         assert result.source == "nlp"
-        assert result.parse_confidence == 0.85
 
         # Clean up the created entry
         db_connection.client.table("entry").delete().eq("id", result.id).execute()
@@ -247,38 +229,8 @@ class TestEntryService:
 class TestCategoryService:
     """Tests for category service with actual database"""
 
-    @pytest_asyncio.fixture
-    async def test_categories_setup(self):
-        """Set up test categories in the database"""
-        test_categories = [
-            {
-                "name": f"Test Food Category {uuid4().hex[:8]}",
-                "type": "expense",
-                "is_system": True,
-            },
-            {
-                "name": f"Test Income Category {uuid4().hex[:8]}",
-                "type": "income",
-                "is_system": True,
-            },
-        ]
-
-        created_categories = []
-        for cat_data in test_categories:
-            result = db_connection.client.table("category").insert(cat_data).execute()
-            if result.data:
-                created_categories.append(result.data[0])
-
-        yield {"categories": created_categories}
-
-        # Cleanup
-        for category in created_categories:
-            db_connection.client.table("category").delete().eq(
-                "id", category["id"]
-            ).execute()
-
     @pytest.mark.asyncio
-    async def test_get_categories_real_integration(self, test_categories_setup):
+    async def test_get_categories_real_integration(self, test_categories):
         """Test real category retrieval with database"""
         params = CategoryQueryParams()
         result = await CategoryService.get_categories(params)
@@ -294,7 +246,7 @@ class TestCategoryService:
 
     @pytest.mark.asyncio
     async def test_get_categories_with_type_filter_real_integration(
-        self, test_categories_setup
+        self, test_categories
     ):
         """Test real category retrieval with type filter using database"""
         # Test expense categories
@@ -312,9 +264,9 @@ class TestCategoryService:
             assert category.type == "income"
 
     @pytest.mark.asyncio
-    async def test_get_category_by_id_real_integration(self, test_categories_setup):
+    async def test_get_category_by_id_real_integration(self, test_categories):
         """Test real category retrieval by ID with database"""
-        test_category = test_categories_setup["categories"][0]
+        test_category = test_categories[0]
 
         result = await CategoryService.get_category_by_id(test_category["id"])
 
@@ -333,7 +285,7 @@ class TestCategoryService:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_category_sorting_real_integration(self, test_categories_setup):
+    async def test_category_sorting_real_integration(self, test_categories):
         """Test real category sorting with database"""
         params = CategoryQueryParams()
         result = await CategoryService.get_categories(params)
@@ -345,9 +297,7 @@ class TestCategoryService:
         assert names == sorted(names)
 
     @pytest.mark.asyncio
-    async def test_concurrent_category_requests_real_integration(
-        self, test_categories_setup
-    ):
+    async def test_concurrent_category_requests_real_integration(self, test_categories):
         """Test concurrent category requests with real database"""
         import asyncio
 
@@ -366,9 +316,9 @@ class TestCategoryService:
             assert len(result) >= 1
 
     @pytest.mark.asyncio
-    async def test_category_with_entries_real_integration(self, test_categories_setup):
+    async def test_category_with_entries_real_integration(self, test_categories):
         """Test category retrieval when it has associated entries"""
-        test_category = test_categories_setup["categories"][0]
+        test_category = test_categories[0]
 
         # Create an entry for this category
         test_entry = {
@@ -416,7 +366,7 @@ class TestCategoryService:
         assert params_no_type.type is None
 
     @pytest.mark.asyncio
-    async def test_large_dataset_performance(self, test_categories_setup):
+    async def test_large_dataset_performance(self, test_categories):
         """Test performance with larger dataset"""
         import time
 
@@ -428,7 +378,7 @@ class TestCategoryService:
                     "amount_cents": 1000 + i * 100,  # $10.00, $10.10, etc.
                     "direction": "expense",
                     "entry_date": "2025-01-15",
-                    "category_id": test_categories_setup["categories"][0]["id"],
+                    "category_id": test_categories[0]["id"],
                     "description": f"Performance test entry {i}",
                     "source": "manual",
                 }

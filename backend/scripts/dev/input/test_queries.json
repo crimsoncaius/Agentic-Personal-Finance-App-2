@@ -1,0 +1,58 @@
+{
+  "queries": [
+    {
+      "id": "read_1",
+      "query": "show my recent expenses",
+      "expected_pathway": "router -> read -> end",
+      "description": "Basic read operation for expenses"
+    },
+    {
+      "id": "read_2",
+      "query": "what did I spend this month?",
+      "expected_pathway": "router -> read -> end",
+      "description": "Read with time filter"
+    },
+    {
+      "id": "write_1",
+      "query": "spent $20 on coffee",
+      "expected_pathway": "router -> write -> end",
+      "description": "Basic expense write operation"
+    },
+    {
+      "id": "write_2",
+      "query": "earned $1000 salary today",
+      "expected_pathway": "router -> write -> end",
+      "description": "Income write operation"
+    },
+    {
+      "id": "write_3",
+      "query": "add $50 for groceries yesterday",
+      "expected_pathway": "router -> write -> end",
+      "description": "Expense with explicit add command"
+    },
+    {
+      "id": "ambiguous_1",
+      "query": "money stuff",
+      "expected_pathway": "router -> unsure -> end",
+      "description": "Ambiguous query that should trigger unsure pathway"
+    },
+    {
+      "id": "ambiguous_2",
+      "query": "help me with finances",
+      "expected_pathway": "router -> unsure -> end",
+      "description": "Vague request that needs clarification"
+    },
+    {
+      "id": "complex_read",
+      "query": "show me all income entries from last week over $500",
+      "expected_pathway": "router -> read -> end",
+      "description": "Complex read with multiple filters"
+    },
+    {
+      "id": "complex_write",
+      "query": "bought groceries for $75.50 at Whole Foods on Monday",
+      "expected_pathway": "router -> write -> end",
+      "description": "Detailed expense with store and amount"
+    }
+  ]
+}

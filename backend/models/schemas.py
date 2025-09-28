@@ -86,10 +86,28 @@ class EntryBase(BaseModel):
         return v
 
 
-class EntryCreateStructured(EntryBase):
-    """Structured entry creation model"""
+class EntryCreateStructured(BaseModel):
+    """Structured entry creation model for manual entries"""
 
-    pass
+    amount: Decimal = Field(..., gt=0, description="Amount in dollars")
+    direction: EntryDirection
+    entry_date: date
+    category_id: Optional[UUID] = Field(
+        None,
+        description="Category ID (Food & Dining example)",
+        json_schema_extra={"example": "280463c5-13c4-47f3-a6aa-db24738af1aa"},
+    )
+    description: Optional[str] = Field(None, max_length=500)
+    source: SourceType = SourceType.MANUAL
+
+
+class EntryCreateNL(EntryBase):
+    """Entry creation model for NLP entries with parse confidence"""
+
+    source: SourceType = SourceType.NLP
+    parse_confidence: float = Field(
+        ..., ge=0.0, le=1.0, description="Confidence score for NLP parsing"
+    )
 
 
 class Entry(EntryBase):

@@ -14,9 +14,28 @@ def test_openai_sdk():
     print("🔍 OpenAI SDK Test")
     print("-" * 20)
 
-    # Load environment
-    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
-    load_dotenv(env_path)
+    # Load environment - try multiple locations for .env file
+    # Script is at: backend/scripts/dev/simple_openai_demo.py
+    # .env is at: project_root/.env
+    script_dir = os.path.dirname(__file__)
+    possible_env_paths = [
+        os.path.join(script_dir, "..", "..", "..", ".env"),  # From backend/scripts/dev/
+        os.path.join(script_dir, "..", "..", ".env"),  # From backend/scripts/
+        os.path.join(script_dir, "..", ".env"),  # From backend/
+        ".env",  # Current directory
+    ]
+
+    env_loaded = False
+    for env_path in possible_env_paths:
+        env_path = os.path.abspath(env_path)
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+            env_loaded = True
+            print(f"📁 Loaded .env from: {env_path}")
+            break
+
+    if not env_loaded:
+        print("⚠️  No .env file found in expected locations")
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:

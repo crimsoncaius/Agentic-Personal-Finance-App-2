@@ -14,7 +14,11 @@ from typing import Any, Dict, List, Tuple
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from database.connection import db_connection
+# Try both import paths to handle running from different directories
+try:
+    from database.connection import db_connection
+except ImportError:
+    from backend.database.connection import db_connection
 
 
 class DatabaseTableTester:

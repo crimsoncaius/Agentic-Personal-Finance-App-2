@@ -11,7 +11,12 @@ from services.nlp_service import NLPService
 from models.schemas import CategoryResponse, EntryDirection
 from database.connection import db_connection
 
-pytestmark = pytest.mark.mock
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.fast,
+    pytest.mark.db_mock,  # Database operations are mocked
+    pytest.mark.llm_mock,  # LLM/OpenAI API calls are mocked
+]
 
 
 class TestNLPIntegrationMock:

@@ -52,6 +52,7 @@ async def create_entry_structured(entry: EntryCreateStructured):
             "category": None,  # TODO: Load category data
             "description": created_entry.description,
             "source": created_entry.source,
+            "parse_confidence": None,  # Manual entries don't have parse confidence
             "created_at": created_entry.created_at,
         }
 

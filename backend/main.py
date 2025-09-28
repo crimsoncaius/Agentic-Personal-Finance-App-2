@@ -2,33 +2,29 @@
 Main FastAPI application for Expense Tracker MVP
 """
 
-import os
-
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-# Load environment variables
-load_dotenv()
+# Import configuration
+from config.settings import settings
 
 # Import routes
 from routes import categories, chat, entries
 
 # Create FastAPI app
 app = FastAPI(
-    title="Expense Tracker MVP",
-    description="Personal finance app with natural language processing",
-    version="1.0.0",
+    title=settings.api_title,
+    description=settings.api_description,
+    version=settings.api_version,
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
 # Configure CORS
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

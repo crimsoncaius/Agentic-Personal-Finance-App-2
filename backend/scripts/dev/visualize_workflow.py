@@ -9,21 +9,15 @@ import asyncio
 from pathlib import Path
 
 # Add the backend directory to the Python path
-# Handle both running from backend/ and from project root
-script_dir = Path(__file__).parent
-if script_dir.name == "backend":
-    # Running from backend directory
-    backend_dir = script_dir
-else:
-    # Running from project root, need to find backend directory
-    backend_dir = script_dir / "backend"
-    if not backend_dir.exists():
-        # Fallback: assume we're in backend directory
-        backend_dir = script_dir
-
+backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from services.nlp_service import NLPService
+# Try both import paths to handle running from different directories
+try:
+    from services.nlp_service import NLPService
+except ImportError:
+    # If running from project root, try backend.services
+    from backend.services.nlp_service import NLPService
 
 
 def visualize_workflow():

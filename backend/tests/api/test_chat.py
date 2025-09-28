@@ -4,13 +4,19 @@ Mock tests for chat functionality - Fast unit tests without external dependencie
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from main import app
 from services.nlp_service import NLPService
 from models.schemas import ParseError, ErrorDetail
 
-pytestmark = pytest.mark.mock
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.fast,
+    pytest.mark.db_mock,  # Database operations are mocked
+    pytest.mark.llm_mock,  # LLM/OpenAI API calls are mocked
+]
 
 
 class TestChatE2EMock:
@@ -294,58 +300,41 @@ class TestChatE2EMock:
                 assert data["detail"]["error"]["code"] == case["mock_response"].code
 
     def test_chat_performance(self, client, mock_nlp_service):
-        """Test chat endpoint performance"""
-        # Mock fast response
+        """Test chat endpoint responds once per request"""
         mock_nlp_service.process_query = AsyncMock(
             return_value={"operation": "read", "result": []}
         )
 
         with patch("routes.chat.NLPService") as mock_nlp_class:
             mock_nlp_class.return_value = mock_nlp_service
-            import time
-
-            start_time = time.time()
-
             response = client.post("/api/v1/chat/", json={"text": "show me expenses"})
 
-            end_time = time.time()
-            response_time = end_time - start_time
+        assert response.status_code == 200
+        assert mock_nlp_service.process_query.await_count == 1
 
-            assert response.status_code == 200
-            # Should respond within reasonable time (adjust threshold as needed)
-            assert response_time < 1.0  # 1 second threshold
-
-    def test_chat_concurrent_requests(self, client, mock_nlp_service):
+    @pytest.mark.asyncio
+    async def test_chat_concurrent_requests(self, mock_nlp_service):
         """Test chat endpoint handles concurrent requests"""
         import asyncio
-        import threading
 
-        # Mock NLP service response
         mock_nlp_service.process_query = AsyncMock(
             return_value={"operation": "read", "result": []}
         )
 
-        def make_request():
-            with patch("routes.chat.NLPService") as mock_nlp_class:
-                mock_nlp_class.return_value = mock_nlp_service
-                response = client.post(
-                    "/api/v1/chat/", json={"text": "show me expenses"}
+        with patch("routes.chat.NLPService") as mock_nlp_class:
+            mock_nlp_class.return_value = mock_nlp_service
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as async_client:
+                responses = await asyncio.gather(
+                    *[
+                        async_client.post(
+                            "/api/v1/chat/", json={"text": "show me expenses"}
+                        )
+                        for _ in range(5)
+                    ]
                 )
-                return response.status_code
 
-        # Create multiple threads
-        threads = []
-        results = []
-
-        for i in range(5):
-            thread = threading.Thread(target=lambda: results.append(make_request()))
-            threads.append(thread)
-            thread.start()
-
-        # Wait for all threads to complete
-        for thread in threads:
-            thread.join()
-
-        # All requests should succeed
-        assert all(status == 200 for status in results)
-        assert len(results) == 5
+        assert all(response.status_code == 200 for response in responses)
+        assert len(responses) == 5

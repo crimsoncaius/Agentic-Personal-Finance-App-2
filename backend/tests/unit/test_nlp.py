@@ -10,7 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from services.nlp_service import NLPService
 from models.schemas import ParsedData, EntryDirection, CategoryResponse, ParseError
 
-pytestmark = pytest.mark.mock
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.fast,
+    pytest.mark.db_mock,  # Database operations are mocked
+    pytest.mark.llm_mock,  # LLM/OpenAI API calls are mocked
+]
 
 
 class TestNLPServiceMock:

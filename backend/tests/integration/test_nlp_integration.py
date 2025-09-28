@@ -12,7 +12,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from services.nlp_service import NLPService
 from models.schemas import ParsedData, EntryDirection, CategoryResponse, ParseError
 
-pytestmark = pytest.mark.real
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.slow,
+    pytest.mark.db_mock,  # Database operations are mocked (focus on LLM)
+    pytest.mark.llm_real,  # Uses real LLM/OpenAI API calls
+]
 
 
 class TestNLPServiceReal:
@@ -51,7 +56,7 @@ class TestNLPServiceReal:
     @pytest.mark.asyncio
     async def test_router_node_ambiguous_input_real(self, nlp_service):
         """Test router node handles ambiguous input with real AI"""
-        result = await nlp_service._router_node({"text": "money"})
+        result = await nlp_service._router_node({"text": "I am unsure"})
 
         # Should default to read for ambiguous input
         assert "operation" in result

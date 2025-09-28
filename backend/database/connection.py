@@ -6,37 +6,30 @@ import os
 from typing import Optional
 
 import httpx
-from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
 from supabase import Client, create_client, ClientOptions
 
-
-class DatabaseSettings(BaseSettings):
-    """Database configuration settings"""
-
-    supabase_url: str
-    supabase_key: str
-    supabase_service_role_key: Optional[str] = None
-    openai_api_key: Optional[str] = None
-
-    model_config = ConfigDict(
-        env_file=".env",  # Look for .env in current directory
-        env_file_encoding="utf-8",
-        extra="ignore",  # Ignore extra environment variables
-    )
+# Import configuration
+try:
+    from config.database import db_config
+except ImportError:
+    from backend.config.database import db_config
 
 
 class DatabaseConnection:
     """Supabase database connection manager"""
 
     def __init__(self):
-        self.settings = DatabaseSettings()
         self._client: Optional[Client] = None
         self._service_client: Optional[Client] = None
 
         # Load OpenAI API key into environment for tests
-        if hasattr(self.settings, "openai_api_key") and self.settings.openai_api_key:
-            os.environ["OPENAI_API_KEY"] = self.settings.openai_api_key
+        try:
+            from config.settings import settings
+        except ImportError:
+            from backend.config.settings import settings
+
+        if settings.openai_api_key:
+            os.environ["OPENAI_API_KEY"] = settings.openai_api_key
 
     @property
     def client(self) -> Client:
@@ -49,7 +42,7 @@ class DatabaseConnection:
             )
             options = ClientOptions(httpx_client=httpx_client)
             self._client = create_client(
-                self.settings.supabase_url, self.settings.supabase_key, options=options
+                db_config.supabase_url, db_config.supabase_key, options=options
             )
         return self._client
 
@@ -57,7 +50,7 @@ class DatabaseConnection:
     def service_client(self) -> Client:
         """Get the service role Supabase client (bypasses RLS)"""
         if self._service_client is None:
-            if not self.settings.supabase_service_role_key:
+            if not db_config.supabase_service_key:
                 raise ValueError("SUPABASE_SERVICE_ROLE_KEY not configured")
             # Configure httpx client with proper timeout and verify settings
             httpx_client = httpx.Client(
@@ -66,8 +59,8 @@ class DatabaseConnection:
             )
             options = ClientOptions(httpx_client=httpx_client)
             self._service_client = create_client(
-                self.settings.supabase_url,
-                self.settings.supabase_service_role_key,
+                db_config.supabase_url,
+                db_config.supabase_service_key,
                 options=options,
             )
         return self._service_client

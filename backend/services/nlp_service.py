@@ -12,39 +12,67 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from pydantic import ValidationError
 
-from database.connection import db_connection
-from models.schemas import (
-    CategoryResponse,
-    EntryDirection,
-    ParsedData,
-    QueryParams,
-    RouterDecision,
-    ParseError,
-    ErrorDetail,
-)
-from services.prompt_manager import PromptManager
+# Try both import paths to handle running from different directories
+try:
+    from database.connection import db_connection
+    from models.schemas import (
+        CategoryResponse,
+        EntryDirection,
+        ParsedData,
+        QueryParams,
+        RouterDecision,
+        ParseError,
+        ErrorDetail,
+    )
+    from services.prompt_manager import PromptManager
+except ImportError:
+    # If running from project root, try backend.*
+    from backend.database.connection import db_connection
+    from backend.models.schemas import (
+        CategoryResponse,
+        EntryDirection,
+        ParsedData,
+        QueryParams,
+        RouterDecision,
+        ParseError,
+        ErrorDetail,
+    )
+    from backend.services.prompt_manager import PromptManager
 
 
 class NLPService:
     """LangGraph-based NLP service for processing natural language queries"""
 
-    def __init__(self, openai_api_key: str):
+    def __init__(self, openai_api_key: str = None):
         """Initialize the NLP service with OpenAI API key"""
+        # Import configuration
+        try:
+            from config.nlp import nlp_config
+            from config.settings import settings
+        except ImportError:
+            from backend.config.nlp import nlp_config
+            from backend.config.settings import settings
+
+        # Use provided key or fall back to config
+        api_key = openai_api_key or settings.openai_api_key
+
         # Set the API key in environment for LangChain
         import os
 
-        os.environ["OPENAI_API_KEY"] = openai_api_key
+        os.environ["OPENAI_API_KEY"] = api_key
 
         # Use OpenAI client directly to avoid LangChain/Pydantic compatibility issues
         try:
             from openai import OpenAI as OpenAIClient
 
-            self.llm = OpenAIClient(api_key=openai_api_key)
+            self.llm = OpenAIClient(api_key=api_key)
         except ImportError:
             raise Exception("OpenAI client not available")
+
         self.db = db_connection
         self._categories_cache: Optional[List[CategoryResponse]] = None
         self.prompt_manager = PromptManager()
+        self.nlp_config = nlp_config
 
     async def process_query(self, text: str) -> Union[Dict, ParseError]:
         """
@@ -430,7 +458,9 @@ class NLPService:
                         (cat.id for cat in categories if cat.type == "income"), None
                     )
 
-            # Create entry data
+            # Create entry data with parse confidence
+            # For now, set a default confidence score of 0.8 for NLP entries
+            # TODO: Implement actual confidence calculation based on LLM response
             entry_data = {
                 "amount_cents": int(data.amount * 100),
                 "direction": data.direction.value,
@@ -438,6 +468,7 @@ class NLPService:
                 "category_id": str(category_id) if category_id else None,
                 "description": data.description,
                 "source": "nlp",
+                "parse_confidence": 0.8,  # Default confidence score
             }
 
             # Insert into database
@@ -456,6 +487,7 @@ class NLPService:
                 "category": {"id": category_id, "name": data.category or "Default"},
                 "description": data.description,
                 "source": "nlp",
+                "parse_confidence": 0.8,  # Default confidence score
                 "created_at": created_entry["created_at"],
             }
 

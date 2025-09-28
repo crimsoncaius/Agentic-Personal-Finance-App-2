@@ -8,12 +8,18 @@ from uuid import uuid4
 
 import pytest
 
-pytestmark = pytest.mark.fast
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.fast,
+    pytest.mark.db_mock,  # No database operations in model tests
+    pytest.mark.llm_mock,  # No LLM operations in model tests
+]
 
 from models.schemas import (
     CategoryQueryParams,
     CategoryResponse,
     ChatRequest,
+    EntryCreateNL,
     EntryCreateStructured,
     EntryListResponse,
     EntryQueryParams,
@@ -41,20 +47,22 @@ class TestEntryModels:
         assert entry.entry_date == date(2025, 1, 15)
         assert entry.description == "Test expense"
         assert entry.source == "manual"
-        assert entry.parse_confidence is None
 
-    def test_entry_create_structured_with_parse_confidence(self):
-        """Test structured entry with parse confidence for NLP"""
+    def test_entry_create_structured_nlp_source(self):
+        """Test structured entry with NLP source (should not have parse_confidence)"""
         entry = EntryCreateStructured(
             amount=Decimal("12.50"),
             direction="expense",
             entry_date=date(2025, 1, 15),
             description="Test expense",
             source="nlp",
-            parse_confidence=0.85,
         )
 
-        assert entry.parse_confidence == 0.85
+        assert entry.amount == Decimal("12.50")
+        assert entry.direction == "expense"
+        assert entry.entry_date == date(2025, 1, 15)
+        assert entry.description == "Test expense"
+        assert entry.source == "nlp"
 
     def test_entry_response_valid(self):
         """Test valid entry response"""
@@ -147,10 +155,11 @@ class TestValidationRules:
     def test_parse_confidence_range(self):
         """Test parse confidence is within valid range"""
         with pytest.raises(ValueError):
-            EntryCreateStructured(
+            EntryCreateNL(
                 amount=Decimal("12.50"),
                 direction="expense",
                 entry_date=date(2025, 1, 15),
+                description="Test expense",
                 source="nlp",
                 parse_confidence=1.5,  # Should be <= 1.0
             )

@@ -8,7 +8,12 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from database.connection import db_connection
+
+# Try both import paths to handle running from different directories
+try:
+    from database.connection import db_connection
+except ImportError:
+    from backend.database.connection import db_connection
 
 
 async def cleanup_test_data():

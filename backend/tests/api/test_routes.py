@@ -14,34 +14,18 @@ from fastapi.testclient import TestClient
 from main import app
 from database.connection import db_connection
 
-pytestmark = pytest.mark.real
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.slow,
+    pytest.mark.db_real,  # Uses real database operations
+    pytest.mark.llm_real,  # Uses real LLM/OpenAI API calls (for chat routes)
+]
 
 client = TestClient(app)
 
 
 class TestEntryRoutes:
     """Tests for entry-related routes with actual database"""
-
-    @pytest_asyncio.fixture
-    async def test_data_setup(self):
-        """Set up test data in the database"""
-        # Create test category
-        test_category = {
-            "name": f"Test Category {uuid4().hex[:8]}",
-            "type": "expense",
-            "is_system": True,
-        }
-
-        result = db_connection.client.table("category").insert(test_category).execute()
-        created_category = result.data[0] if result.data else None
-
-        yield {"category": created_category}
-
-        # Cleanup
-        if created_category:
-            db_connection.client.table("category").delete().eq(
-                "id", created_category["id"]
-            ).execute()
 
     def test_create_entry(self, test_data_setup):
         """Test real entry creation with database"""

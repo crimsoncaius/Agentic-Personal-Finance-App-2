@@ -13,7 +13,12 @@ from services.nlp_service import NLPService
 from models.schemas import CategoryResponse, EntryDirection
 from database.connection import db_connection
 
-pytestmark = pytest.mark.real
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.slow,
+    pytest.mark.db_real,  # Uses real database operations
+    pytest.mark.llm_real,  # Uses real LLM/OpenAI API calls
+]
 
 
 class TestNLPIntegrationReal:
