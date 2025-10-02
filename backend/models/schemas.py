@@ -166,6 +166,7 @@ class ChatResponse(BaseModel):
 
     operation: Literal["read", "write"]
     result: Union[EntryResponse, List[EntryResponse]]
+    message: str = Field(..., description="User-friendly response message")
 
 
 # LangGraph specific models

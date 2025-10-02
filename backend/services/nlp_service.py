@@ -93,12 +93,29 @@ class NLPService:
 
             # Check if there's an error in the result
             if "error" in result and result["error"] is not None:
-                return result["error"]
+                # Don't treat ambiguous errors as failures - they're successful responses
+                if (
+                    hasattr(result["error"], "code")
+                    and result["error"].code == "ambiguous"
+                ):
+                    # Return the success response with the generated message
+                    return {
+                        "operation": result.get("operation", "unsure"),
+                        "result": result.get("result", []),
+                        "message": result.get(
+                            "message",
+                            "I'm not sure what you'd like to do. Could you please clarify?",
+                        ),
+                    }
+                else:
+                    # Return actual errors
+                    return result["error"]
 
             # Return the result in the expected format
             return {
                 "operation": result.get("operation", "read"),
                 "result": result.get("result", []),
+                "message": result.get("message", "Operation completed successfully"),
             }
 
         except Exception as e:
@@ -119,6 +136,7 @@ class NLPService:
             operation: Optional[str]
             result: Optional[Union[Dict, List]]
             error: Optional[ParseError]
+            message: Optional[str]
 
         # Create the graph
         workflow = StateGraph(WorkflowState)
@@ -236,7 +254,14 @@ class NLPService:
                 # Execute the query
                 entries = await self._execute_read_query(validated_params)
 
+                # Generate user-friendly response using LLM
+                response_prompt = self.prompt_manager.generate_read_response_prompt(
+                    state["text"], entries, validated_params, current_date
+                )
+                response_message = await self._call_llm_for_response(response_prompt)
+
                 state["result"] = entries
+                state["message"] = response_message
                 return state
 
             except (json.JSONDecodeError, ValidationError) as e:
@@ -293,7 +318,14 @@ class NLPService:
                 # Create the entry
                 entry = await self._create_entry(validated_data)
 
+                # Generate user-friendly response using LLM
+                response_prompt = self.prompt_manager.generate_write_response_prompt(
+                    state["text"], entry, current_date
+                )
+                response_message = await self._call_llm_for_response(response_prompt)
+
                 state["result"] = entry
+                state["message"] = response_message
                 return state
 
             except (json.JSONDecodeError, ValidationError) as e:
@@ -327,11 +359,18 @@ class NLPService:
                 "To view income, try: 'show my income' or 'what did I earn this month?'",
             ]
 
+            # Generate helpful response message using LLM
+            response_prompt = self.prompt_manager.generate_unsure_response_prompt(
+                state["text"]
+            )
+            response_message = await self._call_llm_for_response(response_prompt)
+
             state["error"] = ParseError(
                 code="ambiguous",
                 message="I'm not sure if you want to view existing entries or create a new one. Could you please clarify?",
                 details=ErrorDetail(suggestions=suggestions),
             )
+            state["message"] = response_message
             return state
 
         except Exception as e:
@@ -493,3 +532,16 @@ class NLPService:
 
         except Exception as e:
             raise Exception(f"Failed to create entry: {str(e)}")
+
+    async def _call_llm_for_response(self, prompt: str) -> str:
+        """Call LLM to generate a user-friendly response"""
+        try:
+            response = self.llm.chat.completions.create(
+                model="gpt-4.1-nano",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,  # Slightly higher temperature for more natural responses
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            # Fallback to a simple response if LLM call fails
+            return "Operation completed successfully."

@@ -68,7 +68,11 @@ async def chat_query(request: ChatRequest):
                 parse_confidence=entry_dict.get("parse_confidence"),
                 created_at=entry_dict["created_at"],
             )
-            return ChatResponse(operation="write", result=entry_response)
+            return ChatResponse(
+                operation="write",
+                result=entry_response,
+                message=result.get("message", "Entry created successfully"),
+            )
         else:
             # For read operations, result is already a list of entry dictionaries
             # Convert each entry to EntryResponse format
@@ -100,7 +104,11 @@ async def chat_query(request: ChatRequest):
                     created_at=entry_dict["created_at"],
                 )
                 entries.append(entry_response)
-            return ChatResponse(operation="read", result=entries)
+            return ChatResponse(
+                operation="read",
+                result=entries,
+                message=result.get("message", "Query completed successfully"),
+            )
 
     except HTTPException:
         raise

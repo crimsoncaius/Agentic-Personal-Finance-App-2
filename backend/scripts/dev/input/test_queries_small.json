@@ -61,18 +61,6 @@
       "description": "Category variation: food vs Food & Dining"
     },
     {
-      "id": "natural_language_bought",
-      "query": "I bought a new laptop for $1200 yesterday",
-      "expected_pathway": "router -> write -> end",
-      "description": "Natural language: bought synonym"
-    },
-    {
-      "id": "conversational_shopping",
-      "query": "I went shopping yesterday and spent $150 on clothes and shoes",
-      "expected_pathway": "router -> write -> end",
-      "description": "Conversational: shopping trip with multiple items"
-    },
-    {
       "id": "gibberish_1",
       "query": "asdfghjkl qwerty 123456",
       "expected_pathway": "router -> unsure -> end",

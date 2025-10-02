@@ -487,6 +487,7 @@
                   <th>Execution Time</th>
                   <th>Workflow Path</th>
                   <th>LLM Calls</th>
+                  <th>Response Gen</th>
                 </tr>
               </thead>
               <tbody id="queriesTableBody"></tbody>
@@ -550,13 +551,9 @@
           }
         }
 
-        // Check node-level errors (but exclude "unsure" node ambiguous responses)
+        // Check node-level errors
         const hasNodeErrors = Object.entries(query.nodes || {}).some(
           ([nodeName, node]) => {
-            // Skip "unsure" node ambiguous responses
-            if (nodeName === "unsure") {
-              return false;
-            }
             return (
               (node.errors && node.errors.length > 0) ||
               (node.output_state && node.output_state.error)
@@ -784,6 +781,12 @@
           const status = hasAnyError ? "error" : "success";
           const statusText = hasAnyError ? "Failed" : "Success";
           const llmCallsCount = query.llm_calls ? query.llm_calls.length : 0;
+          const responseGenCount = query.llm_calls
+            ? query.llm_calls.filter(
+                (c) =>
+                  c.call_type === "llm_call" && c.node_name.includes("response")
+              ).length
+            : 0;
 
           // Check path match status
           const pathMatch = query.pathway_comparison
@@ -804,6 +807,7 @@
                query.workflow_path ? query.workflow_path.join(" → ") : "N/A"
              }</td>
              <td>${llmCallsCount}</td>
+             <td style="color: #28a745; font-weight: bold;">${responseGenCount}</td>
            `;
 
           // Add click handler
@@ -934,14 +938,55 @@
           chart.appendChild(bar);
         });
 
-        // Add LLM call times
+        // Add LLM call times with better categorization
         if (query.llm_calls && query.llm_calls.length > 0) {
-          query.llm_calls.forEach((call, index) => {
+          // Group LLM calls by type
+          const parsingCalls = query.llm_calls.filter(
+            (call) =>
+              call.call_type === "llm_call" &&
+              !call.node_name.includes("response")
+          );
+          const responseCalls = query.llm_calls.filter(
+            (call) =>
+              call.call_type === "llm_call" &&
+              call.node_name.includes("response")
+          );
+          const errorCalls = query.llm_calls.filter(
+            (call) => call.call_type === "error_log"
+          );
+
+          // Add parsing calls
+          parsingCalls.forEach((call, index) => {
             const time = call.execution_time_ms || 0;
             const bar = createBarItem(
-              `LLM Call ${index + 1} (${call.node_name})`,
+              `Parsing: ${call.node_name}`,
               time,
-              maxTime
+              maxTime,
+              "#667eea"
+            );
+            chart.appendChild(bar);
+          });
+
+          // Add response generation calls
+          responseCalls.forEach((call, index) => {
+            const time = call.execution_time_ms || 0;
+            const bar = createBarItem(
+              `Response: ${call.node_name}`,
+              time,
+              maxTime,
+              "#28a745"
+            );
+            chart.appendChild(bar);
+          });
+
+          // Add error calls if any
+          errorCalls.forEach((call, index) => {
+            const time = call.execution_time_ms || 0;
+            const bar = createBarItem(
+              `Error: ${call.node_name}`,
+              time,
+              maxTime,
+              "#dc3545"
             );
             chart.appendChild(bar);
           });
@@ -950,7 +995,7 @@
         container.appendChild(chart);
       }
 
-      function createBarItem(label, value, maxValue) {
+      function createBarItem(label, value, maxValue, color = null) {
         const item = document.createElement("div");
         item.className = "bar-item";
 
@@ -965,6 +1010,11 @@
         fillEl.className = "bar-fill";
         fillEl.style.width = `${(value / maxValue) * 100}%`;
         fillEl.textContent = `${value.toFixed(1)}ms`;
+
+        // Apply custom color if provided
+        if (color) {
+          fillEl.style.background = color;
+        }
 
         const valueEl = document.createElement("div");
         valueEl.className = "bar-value";
@@ -1010,6 +1060,29 @@
                       )}<br>
                       <strong>Status:</strong> ${
                         hasAnyError ? "❌ Failed" : "✅ Success"
+                      }<br>
+                      <strong>LLM Calls:</strong> ${
+                        query.llm_calls ? query.llm_calls.length : 0
+                      } total
+                      ${
+                        query.llm_calls
+                          ? `
+                        (${
+                          query.llm_calls.filter(
+                            (c) =>
+                              c.call_type === "llm_call" &&
+                              !c.node_name.includes("response")
+                          ).length
+                        } parsing, 
+                        ${
+                          query.llm_calls.filter(
+                            (c) =>
+                              c.call_type === "llm_call" &&
+                              c.node_name.includes("response")
+                          ).length
+                        } response generation)
+                      `
+                          : ""
                       }
                   </div>
                   <div style="margin-top: 20px;">
@@ -1035,6 +1108,16 @@
                   </div>
                 <div>
                     <h4>Final Result:</h4>
+                    ${
+                      query.final_result && query.final_result.message
+                        ? `
+                      <div style="margin-bottom: 15px; padding: 15px; background: #e8f5e8; border: 1px solid #c3e6c3; border-radius: 5px;">
+                        <strong>Generated Message:</strong><br>
+                        <em style="font-size: 1.1em; color: #155724;">"${query.final_result.message}"</em>
+                      </div>
+                    `
+                        : ""
+                    }
                     <div class="json-viewer">${JSON.stringify(
                       query.final_result,
                       null,
@@ -1043,27 +1126,109 @@
                 </div>
             `;
 
-        // LLM Calls tab
-        const llmCallsHtml =
-          query.llm_calls && query.llm_calls.length > 0
-            ? query.llm_calls
-                .map(
-                  (call, index) => `
-                    <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
-                        <h4>LLM Call ${index + 1} - ${call.node_name}</h4>
-                        <p><strong>Execution Time:</strong> ${formatTime(
-                          call.execution_time_ms
-                        )}</p>
-                        <p><strong>Response:</strong> ${call.response}</p>
-                        <details>
-                            <summary>View Full Prompt</summary>
-                            <div class="json-viewer">${call.prompt}</div>
-                        </details>
-                    </div>
+        // LLM Calls tab with better categorization
+        let llmCallsHtml = "";
+        if (query.llm_calls && query.llm_calls.length > 0) {
+          // Group calls by type
+          const parsingCalls = query.llm_calls.filter(
+            (call) =>
+              call.call_type === "llm_call" &&
+              !call.node_name.includes("response")
+          );
+          const responseCalls = query.llm_calls.filter(
+            (call) =>
+              call.call_type === "llm_call" &&
+              call.node_name.includes("response")
+          );
+          const errorCalls = query.llm_calls.filter(
+            (call) => call.call_type === "error_log"
+          );
+
+          // Parsing calls section
+          if (parsingCalls.length > 0) {
+            llmCallsHtml += `
+              <div style="margin-bottom: 30px;">
+                <h3 style="color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 5px;">
+                  🔍 Parsing Calls (${parsingCalls.length})
+                </h3>
+                ${parsingCalls
+                  .map(
+                    (call, index) => `
+                  <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; border-left: 4px solid #667eea;">
+                      <h4>${call.node_name}</h4>
+                      <p><strong>Execution Time:</strong> ${formatTime(
+                        call.execution_time_ms
+                      )}</p>
+                      <p><strong>Response:</strong> ${call.response}</p>
+                      <details>
+                          <summary>View Full Prompt</summary>
+                          <div class="json-viewer">${call.prompt}</div>
+                      </details>
+                  </div>
                 `
-                )
-                .join("")
-            : "<p>No LLM calls recorded for this query.</p>";
+                  )
+                  .join("")}
+              </div>
+            `;
+          }
+
+          // Response generation calls section
+          if (responseCalls.length > 0) {
+            llmCallsHtml += `
+              <div style="margin-bottom: 30px;">
+                <h3 style="color: #28a745; border-bottom: 2px solid #28a745; padding-bottom: 5px;">
+                  💬 Response Generation Calls (${responseCalls.length})
+                </h3>
+                ${responseCalls
+                  .map(
+                    (call, index) => `
+                  <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; border-left: 4px solid #28a745;">
+                      <h4>${call.node_name}</h4>
+                      <p><strong>Execution Time:</strong> ${formatTime(
+                        call.execution_time_ms
+                      )}</p>
+                      <p><strong>Generated Message:</strong> <em>${
+                        call.response
+                      }</em></p>
+                      <details>
+                          <summary>View Response Generation Prompt</summary>
+                          <div class="json-viewer">${call.prompt}</div>
+                      </details>
+                  </div>
+                `
+                  )
+                  .join("")}
+              </div>
+            `;
+          }
+
+          // Error calls section
+          if (errorCalls.length > 0) {
+            llmCallsHtml += `
+              <div style="margin-bottom: 30px;">
+                <h3 style="color: #dc3545; border-bottom: 2px solid #dc3545; padding-bottom: 5px;">
+                  ❌ Error Calls (${errorCalls.length})
+                </h3>
+                ${errorCalls
+                  .map(
+                    (call, index) => `
+                  <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; border-left: 4px solid #dc3545;">
+                      <h4>${call.node_name}</h4>
+                      <p><strong>Error:</strong> ${
+                        call.error || "Unknown error"
+                      }</p>
+                      <p><strong>Prompt:</strong> ${call.prompt}</p>
+                  </div>
+                `
+                  )
+                  .join("")}
+              </div>
+            `;
+          }
+        } else {
+          llmCallsHtml = "<p>No LLM calls recorded for this query.</p>";
+        }
+
         document.getElementById("llmCallsContent").innerHTML = llmCallsHtml;
 
         // Errors tab

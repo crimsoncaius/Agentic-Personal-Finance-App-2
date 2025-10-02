@@ -31,14 +31,14 @@ try:
         if os.path.exists(env_path):
             load_dotenv(env_path)
             env_loaded = True
-            print(f"📁 Loaded .env from: {env_path}")
+            print(f"Loaded .env from: {env_path}")
             break
 
     if not env_loaded:
-        print("⚠️  No .env file found in expected locations")
+        print("Warning: No .env file found in expected locations")
 
 except ImportError:
-    print("⚠️  python-dotenv not available, skipping .env loading")
+    print("Warning: python-dotenv not available, skipping .env loading")
 
 # Add backend to path for imports
 # Get the backend directory (2 levels up from this script: dev -> scripts -> backend)
@@ -314,6 +314,7 @@ class WorkflowTracer:
             operation: Optional[str]
             result: Optional[Any]
             error: Optional[Any]
+            message: Optional[str]
 
         # Get the original workflow structure from NLP service
         original_workflow = self.nlp_service._create_workflow()
@@ -393,7 +394,7 @@ class WorkflowTracer:
                     elif node_name == "write":
                         result = await self._trace_write_node(state, trace)
                     elif node_name == "unsure":
-                        result = await self.nlp_service._unsure_node(state)
+                        result = await self._trace_unsure_node(state, trace)
                     else:
                         # For unknown nodes, try to call them directly from the NLP service
                         method_name = f"_{node_name}_node"
@@ -525,7 +526,33 @@ class WorkflowTracer:
                 # Execute the query
                 entries = await self.nlp_service._execute_read_query(validated_params)
 
+                # Generate user-friendly response using LLM
+                response_prompt = (
+                    self.nlp_service.prompt_manager.generate_read_response_prompt(
+                        state["text"], entries, validated_params, current_date
+                    )
+                )
+
+                # Make LLM call for response generation with timing
+                response_llm_start = datetime.now()
+                response_message = await self.nlp_service._call_llm_for_response(
+                    response_prompt
+                )
+                response_llm_end = datetime.now()
+                response_llm_time = (
+                    response_llm_end - response_llm_start
+                ).total_seconds() * 1000
+
+                # Log the response generation LLM call
+                self._log_llm_call(
+                    "read_response",
+                    response_prompt,
+                    response_message,
+                    response_llm_time,
+                )
+
                 state["result"] = entries
+                state["message"] = response_message
                 return state
 
             except (json.JSONDecodeError, ValidationError) as e:
@@ -602,7 +629,33 @@ class WorkflowTracer:
                 # Create the entry
                 entry = await self.nlp_service._create_entry(validated_data)
 
+                # Generate user-friendly response using LLM
+                response_prompt = (
+                    self.nlp_service.prompt_manager.generate_write_response_prompt(
+                        state["text"], entry, current_date
+                    )
+                )
+
+                # Make LLM call for response generation with timing
+                response_llm_start = datetime.now()
+                response_message = await self.nlp_service._call_llm_for_response(
+                    response_prompt
+                )
+                response_llm_end = datetime.now()
+                response_llm_time = (
+                    response_llm_end - response_llm_start
+                ).total_seconds() * 1000
+
+                # Log the response generation LLM call
+                self._log_llm_call(
+                    "write_response",
+                    response_prompt,
+                    response_message,
+                    response_llm_time,
+                )
+
                 state["result"] = entry
+                state["message"] = response_message
                 return state
 
             except (json.JSONDecodeError, ValidationError) as e:
@@ -629,6 +682,68 @@ class WorkflowTracer:
             state["error"] = ParseError(
                 code="parsing_failed",
                 message="Failed to process write request",
+                details=ErrorDetail(suggestions=["Try rephrasing your request"]),
+            )
+            return state
+
+    async def _trace_unsure_node(self, state: Dict, trace: Dict) -> Dict:
+        """Trace unsure node with LLM call logging for response generation"""
+        try:
+            # Generate helpful response message using LLM
+            response_prompt = (
+                self.nlp_service.prompt_manager.generate_unsure_response_prompt(
+                    state["text"]
+                )
+            )
+
+            # Make LLM call for response generation with timing
+            response_llm_start = datetime.now()
+            response_message = await self.nlp_service._call_llm_for_response(
+                response_prompt
+            )
+            response_llm_end = datetime.now()
+            response_llm_time = (
+                response_llm_end - response_llm_start
+            ).total_seconds() * 1000
+
+            # Log the response generation LLM call
+            self._log_llm_call(
+                "unsure_response", response_prompt, response_message, response_llm_time
+            )
+
+            # Create suggestions for the error
+            suggestions = [
+                "To view your expenses, try: 'show my recent expenses' or 'what did I spend this month?'",
+                "To add an expense, try: 'spent $20 on coffee' or 'add $50 for groceries'",
+                "To add income, try: 'earned $1000 salary' or 'received $200 gift'",
+                "To view income, try: 'show my income' or 'what did I earn this month?'",
+            ]
+
+            state["error"] = ParseError(
+                code="ambiguous",
+                message="I'm not sure if you want to view existing entries or create a new one. Could you please clarify?",
+                details=ErrorDetail(suggestions=suggestions),
+            )
+            state["message"] = response_message
+            return state
+
+        except Exception as e:
+            # Log failed LLM call as error log
+            self._log_llm_call(
+                "unsure_response",
+                (
+                    response_prompt
+                    if "response_prompt" in locals()
+                    else "Failed to generate prompt"
+                ),
+                "",
+                0,
+                str(e),
+                call_type="error_log",
+            )
+            state["error"] = ParseError(
+                code="parsing_failed",
+                message="Failed to process ambiguous request",
                 details=ErrorDetail(suggestions=["Try rephrasing your request"]),
             )
             return state
@@ -829,6 +944,14 @@ class WorkflowTracer:
                         query.get("execution_time_ms", 0)
                     ),
                     "llm_calls_count": len(query.get("llm_calls", [])),
+                    "response_generation_calls": len(
+                        [
+                            call
+                            for call in query.get("llm_calls", [])
+                            if call.get("call_type") == "llm_call"
+                            and "response" in call.get("node_name", "")
+                        ]
+                    ),
                     "node_failures": node_failures,
                     "start_time": query.get("start_time", ""),
                     "end_time": query.get("end_time", ""),
