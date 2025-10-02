@@ -184,7 +184,7 @@ class NLPService:
 
             # Use direct OpenAI client
             response = self.llm.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             )
@@ -222,7 +222,7 @@ class NLPService:
 
             # Use direct OpenAI client
             response = self.llm.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             )
@@ -272,7 +272,7 @@ class NLPService:
 
             # Use direct OpenAI client
             response = self.llm.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             )

@@ -197,7 +197,30 @@ class QueryParams(BaseModel):
     amount_min: Optional[Decimal] = None
     amount_max: Optional[Decimal] = None
     q: Optional[str] = Field(None, max_length=255)
-    sort: Literal["entry_date.desc", "created_at.desc"] = "entry_date.desc"
+    sort: Literal[
+        "entry_date.desc",
+        "entry_date.asc",
+        "amount_cents.desc",
+        "amount_cents.asc",
+        "created_at.desc",
+    ] = "entry_date.desc"
+
+    @field_validator("amount_min", "amount_max")
+    @classmethod
+    def validate_amounts(cls, v):
+        """Amount must be positive"""
+        if v is not None and v <= 0:
+            raise ValueError("Amount must be positive")
+        return v
+
+    @field_validator("date_to")
+    @classmethod
+    def validate_date_range(cls, v, info):
+        """date_to must be after date_from"""
+        if v is not None and info.data.get("date_from") is not None:
+            if v < info.data["date_from"]:
+                raise ValueError("date_to must be after date_from")
+        return v
 
 
 # Error models

@@ -1,0 +1,583 @@
+{
+  "timestamp": "20250928_230014",
+  "test_config": {
+    "models": [
+      "gpt-3.5-turbo",
+      "gpt-4.1-mini",
+      "gpt-4.1-nano"
+    ],
+    "query_lengths": [
+      50,
+      100,
+      500,
+      1000,
+      2000
+    ],
+    "iterations": 3
+  },
+  "summary": {
+    "gpt-3.5-turbo": {
+      "length_50": {
+        "avg_total_time": 1.3667420546213787,
+        "median_total_time": 1.4853293895721436,
+        "avg_tokens_per_second": 75.83614478083054,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_100": {
+        "avg_total_time": 1.4727466901143391,
+        "median_total_time": 1.6265392303466797,
+        "avg_tokens_per_second": 55.58193419912106,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_500": {
+        "avg_total_time": 0.9866907596588135,
+        "median_total_time": 0.9911565780639648,
+        "avg_tokens_per_second": 164.49781461304863,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_1000": {
+        "avg_total_time": 1.1980244318644206,
+        "median_total_time": 1.1425015926361084,
+        "avg_tokens_per_second": 186.88452006321285,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_2000": {
+        "avg_total_time": 1.2081433931986492,
+        "median_total_time": 1.0216681957244873,
+        "avg_tokens_per_second": 238.91447176414457,
+        "success_rate": 1.0,
+        "sample_count": 3
+      }
+    },
+    "gpt-4.1-mini": {
+      "length_50": {
+        "avg_total_time": 1.9949885209401448,
+        "median_total_time": 1.9801299571990967,
+        "avg_tokens_per_second": 46.687524189889096,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_100": {
+        "avg_total_time": 1.729609489440918,
+        "median_total_time": 1.731297492980957,
+        "avg_tokens_per_second": 51.0023800390082,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_500": {
+        "avg_total_time": 1.9687089920043945,
+        "median_total_time": 1.8541030883789062,
+        "avg_tokens_per_second": 74.94672386685576,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_1000": {
+        "avg_total_time": 1.9124943415323894,
+        "median_total_time": 1.8944900035858154,
+        "avg_tokens_per_second": 107.91778138561199,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_2000": {
+        "avg_total_time": 1.6185651620229085,
+        "median_total_time": 1.6407322883605957,
+        "avg_tokens_per_second": 162.4970500066588,
+        "success_rate": 1.0,
+        "sample_count": 3
+      }
+    },
+    "gpt-4.1-nano": {
+      "length_50": {
+        "avg_total_time": 1.5125750700632732,
+        "median_total_time": 1.4497709274291992,
+        "avg_tokens_per_second": 49.88618660568743,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_100": {
+        "avg_total_time": 1.577964146931966,
+        "median_total_time": 1.6924657821655273,
+        "avg_tokens_per_second": 51.0856965095685,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_500": {
+        "avg_total_time": 1.8337097962697346,
+        "median_total_time": 2.000713348388672,
+        "avg_tokens_per_second": 82.18207923665155,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_1000": {
+        "avg_total_time": 1.7979386647542317,
+        "median_total_time": 1.6379449367523193,
+        "avg_tokens_per_second": 113.51601618528193,
+        "success_rate": 1.0,
+        "sample_count": 3
+      },
+      "length_2000": {
+        "avg_total_time": 2.4502739111582437,
+        "median_total_time": 2.589193105697632,
+        "avg_tokens_per_second": 111.60741853590326,
+        "success_rate": 1.0,
+        "sample_count": 3
+      }
+    }
+  },
+  "detailed_results": [
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 50,
+      "total_time": 1.4853293895721436,
+      "time_to_first_token": 0.14853293895721437,
+      "tokens_per_second": 65.30537985782489,
+      "token_count": 97,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 50,
+      "total_time": 1.6155824661254883,
+      "time_to_first_token": 0.16155824661254883,
+      "tokens_per_second": 63.13512441405593,
+      "token_count": 102,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 50,
+      "total_time": 0.9993143081665039,
+      "time_to_first_token": 0.0999314308166504,
+      "tokens_per_second": 99.06793007061079,
+      "token_count": 99,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 100,
+      "total_time": 1.7127549648284912,
+      "time_to_first_token": 0.17127549648284912,
+      "tokens_per_second": 44.956810274206674,
+      "token_count": 77,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 100,
+      "total_time": 1.6265392303466797,
+      "time_to_first_token": 0.16265392303466797,
+      "tokens_per_second": 48.569378792764795,
+      "token_count": 79,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 100,
+      "total_time": 1.0789458751678467,
+      "time_to_first_token": 0.10789458751678467,
+      "tokens_per_second": 73.21961353039171,
+      "token_count": 79,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 500,
+      "total_time": 1.0367960929870605,
+      "time_to_first_token": 0.10367960929870607,
+      "tokens_per_second": 156.25058880504653,
+      "token_count": 162,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 500,
+      "total_time": 0.9911565780639648,
+      "time_to_first_token": 0.09911565780639649,
+      "tokens_per_second": 163.44541678413322,
+      "token_count": 162,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 500,
+      "total_time": 0.932119607925415,
+      "time_to_first_token": 0.09321196079254152,
+      "tokens_per_second": 173.79743824996618,
+      "token_count": 162,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 1000,
+      "total_time": 1.5214815139770508,
+      "time_to_first_token": 0.1521481513977051,
+      "tokens_per_second": 141.3096367092916,
+      "token_count": 215,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 1000,
+      "total_time": 0.9300901889801025,
+      "time_to_first_token": 0.09300901889801026,
+      "tokens_per_second": 231.16037836691933,
+      "token_count": 215,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 1000,
+      "total_time": 1.1425015926361084,
+      "time_to_first_token": 0.11425015926361085,
+      "tokens_per_second": 188.1835451134276,
+      "token_count": 215,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 2000,
+      "total_time": 1.002725601196289,
+      "time_to_first_token": 0.10027256011962891,
+      "tokens_per_second": 276.2470606809367,
+      "token_count": 277,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 2000,
+      "total_time": 1.600036382675171,
+      "time_to_first_token": 0.1600036382675171,
+      "tokens_per_second": 169.3711486403223,
+      "token_count": 271,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "query_length": 2000,
+      "total_time": 1.0216681957244873,
+      "time_to_first_token": 0.10216681957244873,
+      "tokens_per_second": 271.12520597117464,
+      "token_count": 277,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 50,
+      "total_time": 1.9077107906341553,
+      "time_to_first_token": 0.19077107906341553,
+      "tokens_per_second": 48.74952768343111,
+      "token_count": 93,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 50,
+      "total_time": 1.9801299571990967,
+      "time_to_first_token": 0.19801299571990968,
+      "tokens_per_second": 46.96661431835966,
+      "token_count": 93,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 50,
+      "total_time": 2.0971248149871826,
+      "time_to_first_token": 0.20971248149871827,
+      "tokens_per_second": 44.346430567876524,
+      "token_count": 93,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 100,
+      "total_time": 1.6245310306549072,
+      "time_to_first_token": 0.16245310306549074,
+      "tokens_per_second": 54.16947927705882,
+      "token_count": 88,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 100,
+      "total_time": 1.731297492980957,
+      "time_to_first_token": 0.17312974929809571,
+      "tokens_per_second": 50.82893053144849,
+      "token_count": 88,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 100,
+      "total_time": 1.8329999446868896,
+      "time_to_first_token": 0.18329999446868897,
+      "tokens_per_second": 48.00873030851729,
+      "token_count": 88,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 500,
+      "total_time": 1.7020766735076904,
+      "time_to_first_token": 0.17020766735076906,
+      "tokens_per_second": 83.42749901352103,
+      "token_count": 142,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 500,
+      "total_time": 2.349947214126587,
+      "time_to_first_token": 0.2349947214126587,
+      "tokens_per_second": 62.12905512188891,
+      "token_count": 146,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 500,
+      "total_time": 1.8541030883789062,
+      "time_to_first_token": 0.18541030883789064,
+      "tokens_per_second": 79.28361746515733,
+      "token_count": 147,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 1000,
+      "total_time": 1.782205581665039,
+      "time_to_first_token": 0.17822055816650392,
+      "tokens_per_second": 118.39262662552748,
+      "token_count": 211,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 1000,
+      "total_time": 2.0607874393463135,
+      "time_to_first_token": 0.20607874393463135,
+      "tokens_per_second": 101.90279501442055,
+      "token_count": 210,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 1000,
+      "total_time": 1.8944900035858154,
+      "time_to_first_token": 0.18944900035858156,
+      "tokens_per_second": 103.45792251688792,
+      "token_count": 196,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 2000,
+      "total_time": 1.6407322883605957,
+      "time_to_first_token": 0.16407322883605957,
+      "tokens_per_second": 160.90376344320396,
+      "token_count": 264,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 2000,
+      "total_time": 1.5464975833892822,
+      "time_to_first_token": 0.15464975833892824,
+      "tokens_per_second": 171.3549396043864,
+      "token_count": 265,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "query_length": 2000,
+      "total_time": 1.6684656143188477,
+      "time_to_first_token": 0.16684656143188478,
+      "tokens_per_second": 155.23244697238604,
+      "token_count": 259,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 50,
+      "total_time": 1.038381576538086,
+      "time_to_first_token": 0.1038381576538086,
+      "tokens_per_second": 50.07793009325675,
+      "token_count": 52,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 50,
+      "total_time": 1.4497709274291992,
+      "time_to_first_token": 0.14497709274291992,
+      "tokens_per_second": 55.181131368015286,
+      "token_count": 80,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 50,
+      "total_time": 2.049572706222534,
+      "time_to_first_token": 0.20495727062225344,
+      "tokens_per_second": 44.39949835579026,
+      "token_count": 91,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 100,
+      "total_time": 1.3397212028503418,
+      "time_to_first_token": 0.1339721202850342,
+      "tokens_per_second": 58.967492514056275,
+      "token_count": 79,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 100,
+      "total_time": 1.7017054557800293,
+      "time_to_first_token": 0.17017054557800293,
+      "tokens_per_second": 45.24872370742013,
+      "token_count": 77,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 100,
+      "total_time": 1.6924657821655273,
+      "time_to_first_token": 0.16924657821655276,
+      "tokens_per_second": 49.040873307229084,
+      "token_count": 83,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 500,
+      "total_time": 2.088735580444336,
+      "time_to_first_token": 0.2088735580444336,
+      "tokens_per_second": 68.94122997098893,
+      "token_count": 144,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 500,
+      "total_time": 1.4116804599761963,
+      "time_to_first_token": 0.14116804599761965,
+      "tokens_per_second": 104.13121394517192,
+      "token_count": 147,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 500,
+      "total_time": 2.000713348388672,
+      "time_to_first_token": 0.2000713348388672,
+      "tokens_per_second": 73.47379379379379,
+      "token_count": 147,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 1000,
+      "total_time": 1.4898841381072998,
+      "time_to_first_token": 0.14898841381073,
+      "tokens_per_second": 132.89624000664423,
+      "token_count": 198,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 1000,
+      "total_time": 1.6379449367523193,
+      "time_to_first_token": 0.16379449367523194,
+      "tokens_per_second": 120.27266337207111,
+      "token_count": 197,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 1000,
+      "total_time": 2.265986919403076,
+      "time_to_first_token": 0.22659869194030763,
+      "tokens_per_second": 87.37914517713045,
+      "token_count": 198,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 2000,
+      "total_time": 2.8575780391693115,
+      "time_to_first_token": 0.2857578039169312,
+      "tokens_per_second": 93.43576845152968,
+      "token_count": 267,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 2000,
+      "total_time": 2.589193105697632,
+      "time_to_first_token": 0.2589193105697632,
+      "tokens_per_second": 102.73470890010307,
+      "token_count": 266,
+      "success": true,
+      "error": null
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "query_length": 2000,
+      "total_time": 1.904050588607788,
+      "time_to_first_token": 0.19040505886077883,
+      "tokens_per_second": 138.65177825607705,
+      "token_count": 264,
+      "success": true,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "queries": [
+    {
+      "id": "edge_case_special_chars",
+      "query": "spent $@#% on !@#$%",
+      "expected_pathway": "router -> write -> end",
+      "description": "Edge case: special characters in amount and description"
+    },
+    {
+      "id": "edge_case_very_long",
+      "query": "I spent a very long time thinking about this purchase and finally decided to buy this expensive item that costs a lot of money and I'm not sure if I should have bought it but it was on sale and I couldn't resist the temptation to buy it even though I probably shouldn't have spent so much money on something I don't really need but it was such a good deal that I had to buy it",
+      "expected_pathway": "router -> write -> end",
+      "description": "Edge case: very long query"
+    },
+    {
+      "id": "malformed_missing_amount",
+      "query": "spent money on something",
+      "expected_pathway": "router -> write -> end",
+      "description": "Malformed: missing amount (should still route to write)"
+    }
+  ]
+}

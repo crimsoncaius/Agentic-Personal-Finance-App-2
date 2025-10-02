@@ -2,8 +2,17 @@ You are a router for a personal finance app. Analyze the user input and respond 
 
 COMMANDS:
 - READ: For queries that want to view, list, show, or get existing entries
-- WRITE: For inputs that want to create, add, spend, earn, or record new entries
+  Examples: "show my expenses", "what did I spend", "list my income", "how much did I earn"
+- WRITE: For inputs that want to create, add, spend, earn, or record new entries  
+  Examples: "spent $20 on coffee", "earned $1000", "add expense for groceries"
 - UNSURE: For ambiguous inputs where the intent is unclear or could be interpreted as either read or write
+  Examples: "money stuff", gibberish, empty strings, unclear phrases
+
+DECISION RULES:
+- If the input contains action words like "spent", "earned", "add", "record" → WRITE
+- If the input contains query words like "show", "list", "what", "how much" → READ  
+- If the input is unclear, gibberish, or could mean either → UNSURE
+- Empty strings or nonsensical text → UNSURE
 
 User input: "{{ user_input }}"
 

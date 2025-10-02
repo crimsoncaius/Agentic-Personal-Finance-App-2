@@ -273,6 +273,9 @@ class WorkflowTracer:
             # Execute the workflow
             result = await traced_workflow.ainvoke({"text": query})
 
+            # Add "end" to workflow path since workflow completed successfully
+            trace["workflow_path"].append("end")
+
             # Capture final result
             trace["final_result"] = result
 
@@ -312,25 +315,38 @@ class WorkflowTracer:
             result: Optional[Any]
             error: Optional[Any]
 
+        # Get the original workflow structure from NLP service
+        original_workflow = self.nlp_service._create_workflow()
+        original_graph = original_workflow.get_graph()
+
         # Create the base workflow
         workflow = StateGraph(WorkflowState)
 
-        # Add traced nodes
-        workflow.add_node("router", self._create_traced_node("router", trace))
-        workflow.add_node("read", self._create_traced_node("read", trace))
-        workflow.add_node("write", self._create_traced_node("write", trace))
-        workflow.add_node("unsure", self._create_traced_node("unsure", trace))
+        # Dynamically add all nodes from the original workflow
+        for node_name in original_graph.nodes.keys():
+            if node_name not in ["__start__", "__end__"]:
+                workflow.add_node(node_name, self._create_traced_node(node_name, trace))
 
-        # Add conditional edges
+        # Add edges based on the original workflow structure
+        # For now, we'll use a simplified approach that works with the current NLP service
+        # In a more robust implementation, we'd extract the actual edge conditions
+
+        # Add conditional edges from router (this is the main conditional logic)
         workflow.add_conditional_edges(
             "router",
             lambda state: state.get("operation", "read"),
             {"read": "read", "write": "write", "unsure": "unsure"},
         )
+
+        # Add direct edges to END for terminal nodes
         workflow.add_edge("read", END)
         workflow.add_edge("write", END)
         workflow.add_edge("unsure", END)
 
+        # For any additional nodes that might be added in the future,
+        # they would need to be handled here or we could add a more dynamic approach
+
+        # Set entry point (should be "router" based on the original workflow)
         workflow.set_entry_point("router")
         return workflow.compile()
 
@@ -350,17 +366,44 @@ class WorkflowTracer:
             }
 
             try:
-                # Call the original node function with LLM call tracing
-                if node_name == "router":
-                    result = await self._trace_router_node(state, trace)
-                elif node_name == "read":
-                    result = await self._trace_read_node(state, trace)
-                elif node_name == "write":
-                    result = await self._trace_write_node(state, trace)
-                elif node_name == "unsure":
-                    result = await self.nlp_service._unsure_node(state)
+                # Dynamically call the original node function
+                # Get the original workflow to access node functions
+                original_workflow = self.nlp_service._create_workflow()
+                original_graph = original_workflow.get_graph()
+
+                # Find the original node function
+                original_node_func = None
+                for node in original_graph.nodes.values():
+                    if hasattr(node, "func") and node.func:
+                        # Check if this is the node we're looking for
+                        # We need to match by function name or other identifier
+                        if hasattr(node, "name") and node.name == node_name:
+                            original_node_func = node.func
+                            break
+
+                if original_node_func:
+                    # Call the original node function directly
+                    result = await original_node_func(state)
                 else:
-                    raise ValueError(f"Unknown node: {node_name}")
+                    # Fallback to hardcoded node handlers for known nodes
+                    if node_name == "router":
+                        result = await self._trace_router_node(state, trace)
+                    elif node_name == "read":
+                        result = await self._trace_read_node(state, trace)
+                    elif node_name == "write":
+                        result = await self._trace_write_node(state, trace)
+                    elif node_name == "unsure":
+                        result = await self.nlp_service._unsure_node(state)
+                    else:
+                        # For unknown nodes, try to call them directly from the NLP service
+                        method_name = f"_{node_name}_node"
+                        if hasattr(self.nlp_service, method_name):
+                            method = getattr(self.nlp_service, method_name)
+                            result = await method(state)
+                        else:
+                            raise ValueError(
+                                f"Unknown node: {node_name} - no method found"
+                            )
 
                 # Capture output
                 node_trace["output_state"] = result.copy()
@@ -405,7 +448,7 @@ class WorkflowTracer:
             # Make LLM call with timing
             llm_start = datetime.now()
             response = self.nlp_service.llm.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             )
@@ -460,7 +503,7 @@ class WorkflowTracer:
             # Make LLM call with timing
             llm_start = datetime.now()
             response = self.nlp_service.llm.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             )
@@ -518,7 +561,7 @@ class WorkflowTracer:
             category_list = [f"{cat.name} ({cat.type})" for cat in categories]
 
             # Get current date for context
-            from datetime import date
+            from datetime import date, datetime
 
             current_date = date.today()
 
@@ -530,7 +573,7 @@ class WorkflowTracer:
             # Make LLM call with timing
             llm_start = datetime.now()
             response = self.nlp_service.llm.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             )
@@ -547,8 +590,6 @@ class WorkflowTracer:
 
                 # Convert date string to date object
                 if "date" in parsed_data:
-                    from datetime import datetime
-
                     parsed_data["entry_date"] = datetime.strptime(
                         parsed_data["date"], "%Y-%m-%d"
                     ).date()
@@ -606,9 +647,13 @@ class WorkflowTracer:
             data = json.load(f)
 
         queries = data.get("queries", [])
+        if not queries:
+            print(f"Warning: No queries found in {queries_file}")
+            return []
+
         results = []
 
-        print(f"Starting to trace {len(queries)} queries...")
+        print(f"Starting to trace {len(queries)} queries from {queries_file}...")
 
         for i, query_data in enumerate(queries):
             query = query_data["query"]
@@ -631,9 +676,184 @@ class WorkflowTracer:
 
         return results
 
+    def _has_query_errors(self, query: Dict[str, Any]) -> bool:
+        """Check if a query has any errors using comprehensive detection"""
+        # Check top-level errors
+        has_top_level_errors = query.get("errors") and len(query["errors"]) > 0
+
+        # Check final result errors (but exclude "unsure" responses)
+        has_final_result_error = False
+        if query.get("final_result") and query["final_result"].get("error") is not None:
+            error = query["final_result"]["error"]
+            # Don't count "ambiguous" errors as failures - they're expected for unsure queries
+            if hasattr(error, "code") and error.code == "ambiguous":
+                has_final_result_error = False
+            else:
+                has_final_result_error = True
+
+        # Check node-level errors (but exclude "unsure" node ambiguous responses)
+        has_node_errors = False
+        if query.get("nodes"):
+            for node_name, node in query["nodes"].items():
+                # Skip "unsure" node ambiguous responses
+                if node_name == "unsure":
+                    continue
+
+                if (node.get("errors") and len(node["errors"]) > 0) or (
+                    node.get("output_state")
+                    and node["output_state"].get("error") is not None
+                ):
+                    has_node_errors = True
+                    break
+
+        return has_top_level_errors or has_final_result_error or has_node_errors
+
+    def _format_time(self, ms: float) -> str:
+        """Format time in milliseconds to human readable format"""
+        if ms < 1000:
+            return f"{ms:.1f}ms"
+        else:
+            return f"{ms/1000:.2f}s"
+
+    def _generate_failure_analysis(
+        self, results: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Generate failure analysis data from trace results"""
+        failures = []
+        status_failures = 0
+        path_failures = 0
+
+        for query in results:
+            # Check for status failure
+            has_errors = self._has_query_errors(query)
+
+            # Check for path failure
+            pathway_comparison = query.get("pathway_comparison", {})
+            path_match = pathway_comparison.get("matches", True)
+
+            # Only include if there's a failure
+            if has_errors or not path_match:
+                failure_types = []
+                failure_reasons = []
+                error_details = []
+                node_failures = []
+                final_llm_call_data = None
+
+                # Analyze status failures
+                if has_errors:
+                    status_failures += 1
+                    failure_types.append("status")
+
+                    # Top-level errors
+                    if query.get("errors"):
+                        for error in query["errors"]:
+                            failure_reasons.append(error.get("type", "unknown_error"))
+                            error_details.append(error.get("message", str(error)))
+
+                    # Final result errors
+                    if query.get("final_result", {}).get("error"):
+                        error = query["final_result"]["error"]
+                        failure_reasons.append("final_result_error")
+                        error_details.append(str(error))
+
+                        # Find the last LLM call that likely caused this error
+                        llm_calls = query.get("llm_calls", [])
+                        if llm_calls:
+                            final_llm_call = llm_calls[-1]  # Get the last LLM call
+                            final_llm_call_data = {
+                                "node_name": final_llm_call.get("node_name", "unknown"),
+                                "prompt": final_llm_call.get("prompt", ""),
+                                "response": final_llm_call.get("response", ""),
+                                "execution_time_ms": final_llm_call.get(
+                                    "execution_time_ms", 0
+                                ),
+                                "timestamp": final_llm_call.get("timestamp", ""),
+                            }
+
+                    # Node-level errors
+                    if query.get("nodes"):
+                        for node_name, node in query["nodes"].items():
+                            node_errors = []
+
+                            # Node errors array
+                            if node.get("errors"):
+                                for error in node["errors"]:
+                                    node_errors.append(
+                                        {
+                                            "type": error.get("type", "unknown"),
+                                            "message": error.get("message", str(error)),
+                                        }
+                                    )
+
+                            # Node output state errors
+                            if node.get("output_state", {}).get("error"):
+                                node_errors.append(
+                                    {
+                                        "type": "output_state_error",
+                                        "message": str(node["output_state"]["error"]),
+                                    }
+                                )
+
+                            if node_errors:
+                                node_failures.append(
+                                    {"node_name": node_name, "errors": node_errors}
+                                )
+
+                # Analyze path failures
+                if not path_match:
+                    path_failures += 1
+                    failure_types.append("path")
+                    failure_reasons.append("pathway_mismatch")
+                    error_details.append(
+                        f"Expected: {pathway_comparison.get('expected', 'N/A')}, Got: {pathway_comparison.get('actual', 'N/A')}"
+                    )
+
+                # Format workflow path
+                workflow_path = query.get("workflow_path", [])
+                workflow_path_str = (
+                    " → ".join(workflow_path) if workflow_path else "N/A"
+                )
+
+                # Create failure record
+                failure_record = {
+                    "query_id": query.get("query_id", ""),
+                    "query_text": query.get("query", ""),
+                    "failure_types": failure_types,
+                    "failure_reasons": failure_reasons,
+                    "error_details": error_details,
+                    "workflow_path": workflow_path_str,
+                    "expected_path": pathway_comparison.get("expected", "N/A"),
+                    "actual_path": pathway_comparison.get("actual", workflow_path_str),
+                    "execution_time_ms": query.get("execution_time_ms", 0),
+                    "execution_time_formatted": self._format_time(
+                        query.get("execution_time_ms", 0)
+                    ),
+                    "llm_calls_count": len(query.get("llm_calls", [])),
+                    "node_failures": node_failures,
+                    "start_time": query.get("start_time", ""),
+                    "end_time": query.get("end_time", ""),
+                }
+
+                # Add final LLM call data if available
+                if final_llm_call_data:
+                    failure_record["final_llm_call"] = final_llm_call_data
+
+                failures.append(failure_record)
+
+        return {
+            "metadata": {
+                "total_failures": len(failures),
+                "status_failures": status_failures,
+                "path_failures": path_failures,
+                "generated_at": datetime.now().isoformat(),
+                "tracer_version": "1.0.0",
+            },
+            "failures": failures,
+        }
+
     def save_results(self, results: List[Dict[str, Any]], output_file: str = None):
         """
-        Save trace results to JSON file
+        Save trace results to JSON file and generate failure analysis
 
         Args:
             results: List of trace results
@@ -647,6 +867,7 @@ class WorkflowTracer:
                 script_dir / "data" / f"workflow_trace_results_{timestamp}.json"
             )
 
+        # Save main results file
         output_data = {
             "metadata": {
                 "total_queries": len(results),
@@ -659,7 +880,19 @@ class WorkflowTracer:
         with open(output_file, "w") as f:
             json.dump(output_data, f, indent=2, default=str)
 
+        # Generate and save failure analysis
+        failure_analysis = self._generate_failure_analysis(results)
+
+        # Create failure file path based on main file
+        failure_file = str(output_file).replace(
+            "workflow_trace_results_", "workflow_failures_"
+        )
+
+        with open(failure_file, "w") as f:
+            json.dump(failure_analysis, f, indent=2, default=str)
+
         print(f"Results saved to: {output_file}")
+        print(f"Failure analysis saved to: {failure_file}")
         return output_file
 
 
@@ -677,94 +910,112 @@ async def main():
     # Initialize tracer
     tracer = WorkflowTracer(openai_api_key)
 
-    # Load and trace queries
-    # Get the script directory to find input file
+    # Get the script directory to find input folder
     script_dir = Path(__file__).parent
-    queries_file = script_dir / "input" / "test_queries.json"
-    if not queries_file.exists():
-        print(f"Error: Queries file '{queries_file}' not found")
-        print("Please ensure test_queries.json is in the input/ folder")
+    input_dir = script_dir / "input"
+
+    if not input_dir.exists():
+        print(f"Error: Input directory '{input_dir}' not found")
+        print("Please ensure the input/ folder exists")
         return
 
-    try:
-        results = await tracer.trace_queries_from_file(queries_file)
+    # Find all JSON files in input directory
+    json_files = list(input_dir.glob("*.json"))
 
-        # Save results
-        output_file = tracer.save_results(results)
+    if not json_files:
+        print(f"Error: No JSON files found in '{input_dir}'")
+        print("Please add JSON files with queries to the input/ folder")
+        return
 
-        # Print summary
-        print("\n" + "=" * 50)
-        print("TRACE SUMMARY")
-        print("=" * 50)
+    print(f"Found {len(json_files)} JSON files to process:")
+    for json_file in json_files:
+        print(f"  - {json_file.name}")
 
-        for result in results:
-            query_id = result["query_id"]
-            query = (
-                result["query"][:50] + "..."
-                if len(result["query"]) > 50
-                else result["query"]
+    # Process each JSON file
+    all_processed_files = []
+
+    for json_file in json_files:
+        print(f"\n{'='*60}")
+        print(f"Processing: {json_file.name}")
+        print(f"{'='*60}")
+
+        try:
+            # Check if file has the expected structure
+            with open(json_file, "r") as f:
+                data = json.load(f)
+
+            if "queries" not in data:
+                print(f"Skipping {json_file.name}: No 'queries' array found")
+                continue
+
+            if not data.get("queries"):
+                print(f"Skipping {json_file.name}: Empty 'queries' array")
+                continue
+
+            # Trace queries from this file
+            results = await tracer.trace_queries_from_file(str(json_file))
+
+            if not results:
+                print(f"No results generated for {json_file.name}")
+                continue
+
+            # Generate output filename based on input file
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            input_stem = json_file.stem  # filename without extension
+            output_file = (
+                script_dir
+                / "data"
+                / f"workflow_trace_results_{input_stem}_{timestamp}.json"
             )
-            pathway = " -> ".join(result["workflow_path"])
-            exec_time = result["execution_time_ms"]
-            errors = len(result["errors"])
-            db_ops = result.get("database_operations", [])
 
-            print(f"\n{query_id}: {query}")
-            print(f"  Pathway: {pathway}")
-            print(f"  Execution time: {exec_time:.2f}ms")
-            if errors > 0:
-                print(f"  Errors: {errors}")
-            db_ops = result.get("database_operations", [])
-            if db_ops:
-                print(f"  Database operations: {len(db_ops)}")
-                for op in db_ops:
-                    op_time = op.get("execution_time_ms", 0)
-                    result_count = op.get("result_count", 0)
-                    error = op.get("error")
-                    status = f"ERROR: {error}" if error else f"OK ({result_count} rows)"
-                    print(
-                        f"    {op['operation']} {op['table']}: {status} ({op_time:.2f}ms)"
-                    )
-            else:
-                print(f"  Database operations: DISABLED (tracing turned off)")
+            # Save results
+            tracer.save_results(results, str(output_file))
+            all_processed_files.append((json_file.name, output_file))
 
-            # Show LLM calls
-            llm_calls = result.get("llm_calls", [])
-            if llm_calls:
-                # Separate real LLM calls from error logs
-                real_calls = [c for c in llm_calls if c.get("call_type") == "llm_call"]
-                error_logs = [c for c in llm_calls if c.get("call_type") == "error_log"]
+            # Print summary for this file
+            print(f"\nSummary for {json_file.name}:")
+            print(f"  Total queries: {len(results)}")
 
-                print(
-                    f"  LLM calls: {len(real_calls)} real calls, {len(error_logs)} error logs"
-                )
+            # Count successes and failures
+            successes = 0
+            failures = 0
+            path_mismatches = 0
 
-                for call in real_calls:
-                    node_name = call.get("node_name", "unknown")
-                    exec_time = call.get("execution_time_ms", 0)
-                    error = call.get("error")
-                    response_preview = (
-                        call.get("response", "")[:50] + "..."
-                        if len(call.get("response", "")) > 50
-                        else call.get("response", "")
-                    )
-                    status = f"ERROR: {error}" if error else f"OK: {response_preview}"
-                    print(f"    {node_name}: {status} ({exec_time:.2f}ms)")
+            for result in results:
+                has_errors = tracer._has_query_errors(result)
+                pathway_comparison = result.get("pathway_comparison", {})
+                path_match = pathway_comparison.get("matches", True)
 
-                for call in error_logs:
-                    node_name = call.get("node_name", "unknown")
-                    error = call.get("error", "Unknown error")
-                    print(f"    {node_name} (error log): {error}")
-            else:
-                print(f"  LLM calls: None captured")
+                if has_errors:
+                    failures += 1
+                else:
+                    successes += 1
 
-        print(f"\nDetailed results saved to: {output_file}")
+                if not path_match:
+                    path_mismatches += 1
 
-    except Exception as e:
-        print(f"Error during tracing: {str(e)}")
-        import traceback
+            print(f"  Successes: {successes}")
+            print(f"  Failures: {failures}")
+            print(f"  Path mismatches: {path_mismatches}")
+            print(f"  Results saved to: {output_file.name}")
 
-        traceback.print_exc()
+        except Exception as e:
+            print(f"Error processing {json_file.name}: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+            continue
+
+    # Final summary
+    print(f"\n{'='*60}")
+    print("PROCESSING COMPLETE")
+    print(f"{'='*60}")
+    print(f"Successfully processed {len(all_processed_files)} files:")
+    for input_name, output_file in all_processed_files:
+        print(f"  {input_name} -> {output_file.name}")
+
+    if not all_processed_files:
+        print("No files were successfully processed.")
 
 
 if __name__ == "__main__":

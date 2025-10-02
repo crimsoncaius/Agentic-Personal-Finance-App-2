@@ -50,7 +50,7 @@ def test_openai_sdk():
         # Test chat completion
         print("🔄 Testing chat completion...")
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4.1-nano",
             messages=[{"role": "user", "content": "Say 'SDK test successful'"}],
             max_tokens=10,
             temperature=0,
