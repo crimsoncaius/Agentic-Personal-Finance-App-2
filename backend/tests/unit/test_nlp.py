@@ -8,7 +8,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from services.nlp_service import NLPService
-from models.schemas import ParsedData, EntryDirection, CategoryResponse, ParseError
+from models.schemas import ParsedData, EntryDirection, CategoryResponse, ParseError, ErrorDetail
 
 pytestmark = [
     pytest.mark.unit,
@@ -21,16 +21,40 @@ pytestmark = [
 class TestNLPServiceMock:
     """Mock unit tests for NLP service - Fast unit tests"""
 
+
     @pytest.fixture
     def nlp_service(self):
         """Create NLP service instance for testing with mocked dependencies"""
-        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}), patch(
-            "services.nlp_service.ChatOpenAI"
-        ) as mock_chat_openai:
-            mock_llm = MagicMock()
-            mock_chat_openai.return_value = mock_llm
+        mock_llm = MagicMock()
+        mock_db = MagicMock()
+        mock_db.client = MagicMock()
+
+        prompt_manager = MagicMock()
+        prompt_manager.generate_router_prompt.return_value = "router prompt"
+        prompt_manager.generate_read_prompt.return_value = "read prompt"
+        prompt_manager.generate_write_prompt.return_value = "write prompt"
+        prompt_manager.generate_read_response_prompt.return_value = "read response prompt"
+        prompt_manager.generate_write_response_prompt.return_value = "write response prompt"
+        prompt_manager.generate_unsure_response_prompt.return_value = "unsure response prompt"
+
+        env_overrides = {
+            "OPENAI_API_KEY": "test-key",
+            "SUPABASE_URL": "http://localhost",
+            "SUPABASE_KEY": "test-supabase-key",
+            "SUPABASE_SERVICE_ROLE_KEY": "test-service-role",
+        }
+
+        with patch.dict("os.environ", env_overrides, clear=False), patch(
+            "openai.OpenAI", return_value=mock_llm
+        ), patch(
+            "services.nlp_service.db_connection", new=mock_db
+        ), patch(
+            "services.nlp_service.PromptManager", return_value=prompt_manager
+        ):
             service = NLPService("test-key")
             service.llm = mock_llm
+            service.prompt_manager = prompt_manager
+            service.db = mock_db
             return service
 
     @pytest.fixture
@@ -151,12 +175,14 @@ class TestNLPServiceMock:
 
         nlp_service.llm.chat.completions.create = MagicMock(return_value=mock_response)
         nlp_service._execute_read_query = AsyncMock(return_value=mock_entries)
+        nlp_service._call_llm_for_response = AsyncMock(return_value="Here is your summary.")
 
         result = await nlp_service._read_node({"text": "show me expenses"})
 
         assert "result" in result
         assert len(result["result"]) == 1
         assert result["result"][0]["id"] == "entry-1"
+        assert result["message"] == "Here is your summary."
 
     @pytest.mark.asyncio
     async def test_read_node_invalid_json(self, nlp_service):
@@ -197,12 +223,14 @@ class TestNLPServiceMock:
         nlp_service.llm.chat.completions.create = MagicMock(return_value=mock_response)
         nlp_service._get_categories = AsyncMock(return_value=mock_categories)
         nlp_service._create_entry = AsyncMock(return_value=mock_created_entry)
+        nlp_service._call_llm_for_response = AsyncMock(return_value="Entry created successfully.")
 
         result = await nlp_service._write_node({"text": "spent $20 on coffee"})
 
         assert "result" in result
         assert result["result"]["id"] == "entry-1"
         assert result["result"]["amount"] == 20.0
+        assert result["message"] == "Entry created successfully."
 
     @pytest.mark.asyncio
     async def test_write_node_missing_fields(self, nlp_service, mock_categories):
@@ -248,6 +276,8 @@ class TestNLPServiceMock:
     @pytest.mark.asyncio
     async def test_unsure_node_success(self, nlp_service):
         """Test unsure node returns helpful error message"""
+        nlp_service._call_llm_for_response = AsyncMock(return_value="Please clarify your request.")
+
         result = await nlp_service._unsure_node({"text": "coffee"})
 
         assert "error" in result
@@ -255,16 +285,20 @@ class TestNLPServiceMock:
         assert result["error"].code == "ambiguous"
         assert "clarify" in result["error"].message.lower()
         assert len(result["error"].details.suggestions) == 4
+        assert result["message"] == "Please clarify your request."
 
     @pytest.mark.asyncio
     async def test_unsure_node_exception(self, nlp_service):
         """Test unsure node handles exceptions gracefully"""
         # Test the unsure node with normal input - it should handle gracefully
+        nlp_service._call_llm_for_response = AsyncMock(return_value="Please clarify your request.")
+
         result = await nlp_service._unsure_node({"text": "coffee"})
 
         assert "error" in result
         assert isinstance(result["error"], ParseError)
         assert result["error"].code == "ambiguous"
+        assert result["message"] == "Please clarify your request."
 
     @pytest.mark.asyncio
     async def test_get_categories_success(self, nlp_service):
@@ -413,6 +447,30 @@ class TestNLPServiceMock:
         assert isinstance(result, ParseError)
         assert result.code == "parsing_failed"
 
+
+    @pytest.mark.asyncio
+    async def test_process_query_handles_ambiguous_error(self, nlp_service):
+        """Test ambiguous workflow responses are returned as friendly message"""
+        ambiguous_error = ParseError(
+            code="ambiguous",
+            message="Need clarification",
+            details=ErrorDetail(suggestions=["Provide more detail"]),
+        )
+        mock_workflow_instance = AsyncMock()
+        mock_workflow_instance.ainvoke.return_value = {
+            "operation": "unsure",
+            "result": [],
+            "message": "Need clarification",
+            "error": ambiguous_error,
+        }
+        nlp_service._create_workflow = MagicMock(return_value=mock_workflow_instance)
+
+        result = await nlp_service.process_query("show me something")
+
+        assert result["operation"] == "unsure"
+        assert result["message"] == "Need clarification"
+        assert result["result"] == []
+
     @pytest.mark.asyncio
     async def test_service_initialization(self, nlp_service):
         """Test service initialization with mocked dependencies"""
@@ -499,8 +557,10 @@ class TestNLPServiceMock:
         nlp_service.llm.chat.completions.create = MagicMock(return_value=mock_response)
         nlp_service._get_categories = AsyncMock(return_value=mock_categories)
         nlp_service._create_entry = AsyncMock(return_value=mock_created_entry)
+        nlp_service._call_llm_for_response = AsyncMock(return_value="Entry created successfully.")
 
         result = await nlp_service._write_node({"text": "spent $20 on coffee"})
 
         assert "result" in result
         assert result["result"]["parse_confidence"] == 0.85
+        assert result["message"] == "Entry created successfully."

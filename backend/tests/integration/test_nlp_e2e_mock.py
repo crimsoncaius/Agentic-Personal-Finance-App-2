@@ -25,15 +25,37 @@ class TestNLPIntegrationMock:
     @pytest.fixture
     def nlp_service(self):
         """Create NLP service instance for testing with mocked dependencies"""
-        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}), patch(
-            "services.nlp_service.ChatOpenAI"
-        ) as mock_chat_openai:
-            mock_llm = MagicMock()
-            mock_chat_openai.return_value = mock_llm
+        mock_llm = MagicMock()
+        mock_db = MagicMock()
+        mock_db.client = MagicMock()
+
+        prompt_manager = MagicMock()
+        prompt_manager.generate_router_prompt.return_value = "router prompt"
+        prompt_manager.generate_read_prompt.return_value = "read prompt"
+        prompt_manager.generate_write_prompt.return_value = "write prompt"
+        prompt_manager.generate_read_response_prompt.return_value = "read response prompt"
+        prompt_manager.generate_write_response_prompt.return_value = "write response prompt"
+        prompt_manager.generate_unsure_response_prompt.return_value = "unsure response prompt"
+
+        env_overrides = {
+            "OPENAI_API_KEY": "test-key",
+            "SUPABASE_URL": "http://localhost",
+            "SUPABASE_KEY": "test-supabase-key",
+            "SUPABASE_SERVICE_ROLE_KEY": "test-service-role",
+        }
+
+        with patch.dict("os.environ", env_overrides, clear=False), patch(
+            "openai.OpenAI", return_value=mock_llm
+        ), patch(
+            "services.nlp_service.db_connection", new=mock_db
+        ), patch(
+            "services.nlp_service.PromptManager", return_value=prompt_manager
+        ):
             service = NLPService("test-key")
             service.llm = mock_llm
+            service.db = mock_db
+            service.prompt_manager = prompt_manager
             return service
-
     @pytest.fixture
     def mock_database_data(self):
         """Mock database data for testing"""
@@ -120,6 +142,7 @@ class TestNLPIntegrationMock:
                 ],
             }
         )
+        nlp_service._read_node.return_value['message'] = 'Here are your matching entries.'
 
         result = await nlp_service.process_query("show me my expenses")
 
@@ -127,6 +150,7 @@ class TestNLPIntegrationMock:
         assert result["operation"] == "read"
         assert "result" in result
         assert len(result["result"]) >= 2  # Should have at least 2 expense entries
+        assert result["message"] == "Here are your matching entries."
 
         # Verify the entries are properly formatted
         for entry in result["result"]:
@@ -158,6 +182,7 @@ class TestNLPIntegrationMock:
         nlp_service._write_node = AsyncMock(
             return_value={"operation": "write", "result": mock_created_entry}
         )
+        nlp_service._write_node.return_value['message'] = 'Entry created successfully.'
 
         result = await nlp_service.process_query("spent $15 on lunch")
 
@@ -172,6 +197,7 @@ class TestNLPIntegrationMock:
         assert entry["direction"] == "expense"
         assert "description" in entry
         assert "category" in entry
+        assert result["message"] == "Entry created successfully."
 
     @pytest.mark.asyncio
     async def test_category_fallback_mock_integration(
@@ -198,6 +224,7 @@ class TestNLPIntegrationMock:
         nlp_service._write_node = AsyncMock(
             return_value={"operation": "write", "result": mock_created_entry}
         )
+        nlp_service._write_node.return_value['message'] = 'Entry created successfully.'
 
         result = await nlp_service.process_query("spent $25 on unknown category")
 
@@ -210,6 +237,7 @@ class TestNLPIntegrationMock:
         assert "category" in entry
         assert "id" in entry["category"]
         assert "name" in entry["category"]
+        assert result["message"] == "Entry created successfully."
 
     @pytest.mark.asyncio
     async def test_database_error_handling_mock(self, nlp_service):
@@ -221,6 +249,7 @@ class TestNLPIntegrationMock:
         nlp_service._read_node = AsyncMock(
             return_value={"operation": "read", "result": []}
         )
+        nlp_service._read_node.return_value['message'] = 'Here are your matching entries.'
 
         result = await nlp_service.process_query("show me expenses from 1900")
 
@@ -229,6 +258,7 @@ class TestNLPIntegrationMock:
         assert result["operation"] == "read"
         assert "result" in result
         assert isinstance(result["result"], list)
+        assert result["message"] == "Here are your matching entries."
 
     @pytest.mark.asyncio
     async def test_end_to_end_read_flow_mock(self, nlp_service, mock_database_data):
@@ -240,6 +270,7 @@ class TestNLPIntegrationMock:
         nlp_service._read_node = AsyncMock(
             return_value={"operation": "read", "result": mock_database_data["entries"]}
         )
+        nlp_service._read_node.return_value['message'] = 'Here are your matching entries.'
 
         # Test various read queries
         queries = [
@@ -256,6 +287,7 @@ class TestNLPIntegrationMock:
             assert result["operation"] == "read"
             assert "result" in result
             assert isinstance(result["result"], list)
+            assert result["message"] == "Here are your matching entries."
 
     @pytest.mark.asyncio
     async def test_end_to_end_write_flow_mock(self, nlp_service, mock_database_data):
@@ -278,6 +310,7 @@ class TestNLPIntegrationMock:
         nlp_service._write_node = AsyncMock(
             return_value={"operation": "write", "result": mock_created_entry}
         )
+        nlp_service._write_node.return_value['message'] = 'Entry created successfully.'
 
         # Test various write queries
         write_queries = [
@@ -299,6 +332,7 @@ class TestNLPIntegrationMock:
             assert "amount" in entry
             assert "direction" in entry
             assert "description" in entry
+            assert result["message"] == "Entry created successfully."
 
     @pytest.mark.asyncio
     async def test_nlp_parsing_accuracy_mock(self, nlp_service, mock_database_data):
@@ -340,6 +374,7 @@ class TestNLPIntegrationMock:
             nlp_service._write_node = AsyncMock(
                 return_value={"operation": "write", "result": mock_created_entry}
             )
+            nlp_service._write_node.return_value['message'] = 'Entry created successfully.'
 
             result = await nlp_service.process_query(case["query"])
 
@@ -350,6 +385,7 @@ class TestNLPIntegrationMock:
             entry = result["result"]
             assert abs(entry["amount"] - case["expected_amount"]) < 0.01
             assert entry["direction"] == case["expected_direction"]
+            assert result["message"] == "Entry created successfully."
 
     @pytest.mark.asyncio
     async def test_workflow_error_handling_mock(self, nlp_service):
@@ -379,6 +415,7 @@ class TestNLPIntegrationMock:
         nlp_service._read_node = AsyncMock(
             return_value={"operation": "read", "result": mock_database_data["entries"]}
         )
+        nlp_service._read_node.return_value['message'] = 'Here are your matching entries.'
 
         # Create multiple concurrent queries
         queries = [
@@ -398,3 +435,4 @@ class TestNLPIntegrationMock:
             assert "operation" in result
             assert result["operation"] == "read"
             assert "result" in result
+            assert result["message"] == "Here are your matching entries."

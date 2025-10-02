@@ -449,7 +449,7 @@
         <h1>🔍 Workflow Trace Visualizer</h1>
         <p>
           Analyze and debug workflow execution traces from your personal finance
-          app
+          app (supports both V1 and V2 NLP services)
         </p>
       </div>
 
@@ -551,9 +551,13 @@
           }
         }
 
-        // Check node-level errors
+        // Check node-level errors (exclude "unsure_response" node ambiguous responses)
         const hasNodeErrors = Object.entries(query.nodes || {}).some(
           ([nodeName, node]) => {
+            // Skip "unsure_response" node ambiguous responses
+            if (nodeName === "unsure_response") {
+              return false;
+            }
             return (
               (node.errors && node.errors.length > 0) ||
               (node.output_state && node.output_state.error)
@@ -565,7 +569,11 @@
       }
 
       // Helper function to check for errors in a specific node
-      function hasNodeErrors(node) {
+      function hasNodeErrors(node, nodeName = null) {
+        // Skip "unsure_response" node ambiguous responses
+        if (nodeName === "unsure_response") {
+          return false;
+        }
         return (
           (node.errors && node.errors.length > 0) ||
           (node.output_state && node.output_state.error)
@@ -784,7 +792,8 @@
           const responseGenCount = query.llm_calls
             ? query.llm_calls.filter(
                 (c) =>
-                  c.call_type === "llm_call" && c.node_name.includes("response")
+                  c.call_type === "llm_call" &&
+                  (c.node_name.includes("response") || c.node_name === "unsure")
               ).length
             : 0;
 
@@ -855,7 +864,7 @@
 
           if (node) {
             // Use helper function for consistent error detection
-            if (hasNodeErrors(node)) {
+            if (hasNodeErrors(node, nodeName)) {
               nodeEl.classList.add("error");
             } else {
               nodeEl.classList.add("executed");
@@ -940,16 +949,20 @@
 
         // Add LLM call times with better categorization
         if (query.llm_calls && query.llm_calls.length > 0) {
-          // Group LLM calls by type
+          // Group LLM calls by type (V2 workflow structure)
           const parsingCalls = query.llm_calls.filter(
             (call) =>
               call.call_type === "llm_call" &&
-              !call.node_name.includes("response")
+              (call.node_name === "parse" ||
+                call.node_name === "router" ||
+                call.node_name === "read" ||
+                call.node_name === "write")
           );
           const responseCalls = query.llm_calls.filter(
             (call) =>
               call.call_type === "llm_call" &&
-              call.node_name.includes("response")
+              (call.node_name.includes("response") ||
+                call.node_name === "unsure")
           );
           const errorCalls = query.llm_calls.filter(
             (call) => call.call_type === "error_log"
@@ -1071,14 +1084,18 @@
                           query.llm_calls.filter(
                             (c) =>
                               c.call_type === "llm_call" &&
-                              !c.node_name.includes("response")
+                              (c.node_name === "parse" ||
+                                c.node_name === "router" ||
+                                c.node_name === "read" ||
+                                c.node_name === "write")
                           ).length
                         } parsing, 
                         ${
                           query.llm_calls.filter(
                             (c) =>
                               c.call_type === "llm_call" &&
-                              c.node_name.includes("response")
+                              (c.node_name.includes("response") ||
+                                c.node_name === "unsure")
                           ).length
                         } response generation)
                       `
@@ -1129,16 +1146,20 @@
         // LLM Calls tab with better categorization
         let llmCallsHtml = "";
         if (query.llm_calls && query.llm_calls.length > 0) {
-          // Group calls by type
+          // Group calls by type (V2 workflow structure)
           const parsingCalls = query.llm_calls.filter(
             (call) =>
               call.call_type === "llm_call" &&
-              !call.node_name.includes("response")
+              (call.node_name === "parse" ||
+                call.node_name === "router" ||
+                call.node_name === "read" ||
+                call.node_name === "write")
           );
           const responseCalls = query.llm_calls.filter(
             (call) =>
               call.call_type === "llm_call" &&
-              call.node_name.includes("response")
+              (call.node_name.includes("response") ||
+                call.node_name === "unsure")
           );
           const errorCalls = query.llm_calls.filter(
             (call) => call.call_type === "error_log"
@@ -1151,6 +1172,13 @@
                 <h3 style="color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 5px;">
                   🔍 Parsing Calls (${parsingCalls.length})
                 </h3>
+                <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
+                  ${
+                    parsingCalls.some((c) => c.node_name === "parse")
+                      ? "V2: Unified parsing (operation detection + data extraction)"
+                      : "V1: Separate router and parsing calls"
+                  }
+                </p>
                 ${parsingCalls
                   .map(
                     (call, index) => `

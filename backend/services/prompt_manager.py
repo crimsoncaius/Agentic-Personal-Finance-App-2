@@ -30,6 +30,7 @@ class PromptManager:
         self.router_template = self.env.get_template("router_prompt.j2")
         self.read_template = self.env.get_template("read_prompt.j2")
         self.write_template = self.env.get_template("write_prompt.j2")
+        self.unified_template = self.env.get_template("unified_prompt.j2")
 
         # Load response templates
         self.read_response_template = self.env.get_template("read_response.j2")
@@ -189,4 +190,20 @@ class PromptManager:
         return self.unsure_response_template.render(
             user_input=user_input,
             current_date=current_date.isoformat(),
+        )
+
+    def generate_unified_prompt(
+        self, user_input: str, current_date: date = None, categories: List[str] = None
+    ) -> str:
+        """Generate unified prompt that combines parsing + operation detection"""
+        if current_date is None:
+            current_date = date.today()
+
+        date_examples = self._get_date_examples(current_date)
+
+        return self.unified_template.render(
+            user_input=user_input,
+            current_date=current_date.isoformat(),
+            date_examples=date_examples,
+            categories=categories or [],
         )

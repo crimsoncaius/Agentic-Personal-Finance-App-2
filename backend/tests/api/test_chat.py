@@ -56,6 +56,7 @@ class TestChatE2EMock:
                         },
                     }
                 ],
+                "message": "Here are your matching entries.",
             }
         )
 
@@ -69,6 +70,7 @@ class TestChatE2EMock:
             data = response.json()
             assert data["operation"] == "read"
             assert len(data["result"]) >= 1
+            assert data["message"] == "Here are your matching entries."
             # Verify the entries are properly formatted
             for entry in data["result"]:
                 assert "id" in entry
@@ -99,6 +101,7 @@ class TestChatE2EMock:
                         "type": "expense",
                     },
                 },
+                "message": "Entry created successfully.",
             }
         )
 
@@ -112,6 +115,7 @@ class TestChatE2EMock:
             data = response.json()
             assert data["operation"] == "write"
             assert float(data["result"]["amount"]) == 20.0
+            assert data["message"] == "Entry created successfully."
 
     def test_chat_parsing_error(self, client, mock_nlp_service):
         """Test chat endpoint handles parsing errors"""
@@ -229,6 +233,12 @@ class TestChatE2EMock:
         ]
 
         for case in test_cases:
+            default_message = (
+                "Entry created successfully."
+                if case["expected_operation"] == "write"
+                else "Here are your matching entries."
+            )
+            case["mock_response"].setdefault("message", default_message)
             mock_nlp_service.process_query = AsyncMock(
                 return_value=case["mock_response"]
             )
@@ -240,6 +250,7 @@ class TestChatE2EMock:
                 assert response.status_code == 200
                 data = response.json()
                 assert data["operation"] == case["expected_operation"]
+                assert data["message"] == default_message
 
     def test_chat_error_scenarios(self, client, mock_nlp_service):
         """Test various error scenarios"""
@@ -302,7 +313,7 @@ class TestChatE2EMock:
     def test_chat_performance(self, client, mock_nlp_service):
         """Test chat endpoint responds once per request"""
         mock_nlp_service.process_query = AsyncMock(
-            return_value={"operation": "read", "result": []}
+            return_value={"operation": "read", "result": [], "message": "Here are your matching entries."}
         )
 
         with patch("routes.chat.NLPService") as mock_nlp_class:
@@ -318,7 +329,7 @@ class TestChatE2EMock:
         import asyncio
 
         mock_nlp_service.process_query = AsyncMock(
-            return_value={"operation": "read", "result": []}
+            return_value={"operation": "read", "result": [], "message": "Here are your matching entries."}
         )
 
         with patch("routes.chat.NLPService") as mock_nlp_class:

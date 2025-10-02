@@ -1,0 +1,48 @@
+// API Service for Personal Finance App
+
+import {
+  EntryListResponse,
+  ChatRequest,
+  ChatResponse,
+  ErrorResponse,
+} from "../types/api";
+
+const API_BASE_URL = "http://localhost:8000/api/v1";
+
+class ApiService {
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      ...options,
+    });
+
+    if (!response.ok) {
+      const errorData: ErrorResponse = await response.json();
+      throw new Error(errorData.error.message || "API request failed");
+    }
+
+    return response.json();
+  }
+
+  async getEntries(): Promise<EntryListResponse> {
+    return this.request<EntryListResponse>("/entries/");
+  }
+
+  async sendChatMessage(message: string): Promise<ChatResponse> {
+    const request: ChatRequest = { text: message };
+    return this.request<ChatResponse>("/chat/", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+}
+
+export const apiService = new ApiService();

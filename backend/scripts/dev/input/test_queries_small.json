@@ -4,78 +4,91 @@
       "id": "read_1",
       "query": "show my recent expenses",
       "expected_pathway": "router -> read -> end",
+      "expected_pathway_v2": "parse -> read_response -> end",
       "description": "Basic read operation for expenses"
     },
     {
       "id": "read_2",
       "query": "what did I spend this month?",
       "expected_pathway": "router -> read -> end",
+      "expected_pathway_v2": "parse -> read_response -> end",
       "description": "Read with time filter"
     },
     {
       "id": "write_1",
       "query": "spent $20 on coffee",
       "expected_pathway": "router -> write -> end",
+      "expected_pathway_v2": "parse -> write_response -> end",
       "description": "Basic expense write operation"
     },
     {
       "id": "write_2",
       "query": "earned $1000 salary today",
       "expected_pathway": "router -> write -> end",
+      "expected_pathway_v2": "parse -> write_response -> end",
       "description": "Income write operation"
     },
     {
       "id": "ambiguous_1",
       "query": "money stuff",
       "expected_pathway": "router -> unsure -> end",
+      "expected_pathway_v2": "parse -> unsure_response -> end",
       "description": "Ambiguous query that should trigger unsure pathway"
     },
     {
       "id": "complex_read",
       "query": "show me all income entries from last week over $500",
       "expected_pathway": "router -> read -> end",
+      "expected_pathway_v2": "parse -> read_response -> end",
       "description": "Complex read with multiple filters"
     },
     {
       "id": "complex_write",
       "query": "bought groceries for $75.50 at Whole Foods on Monday",
       "expected_pathway": "router -> write -> end",
+      "expected_pathway_v2": "parse -> write_response -> end",
       "description": "Detailed expense with store and amount"
     },
     {
       "id": "date_relative_today",
       "query": "spent $25 on lunch today",
       "expected_pathway": "router -> write -> end",
+      "expected_pathway_v2": "parse -> write_response -> end",
       "description": "Today date reference"
     },
     {
       "id": "date_relative_yesterday",
       "query": "bought $30 worth of groceries yesterday",
       "expected_pathway": "router -> write -> end",
+      "expected_pathway_v2": "parse -> write_response -> end",
       "description": "Yesterday date reference"
     },
     {
       "id": "category_food_variation",
       "query": "spent $25 on food at McDonald's",
       "expected_pathway": "router -> write -> end",
+      "expected_pathway_v2": "parse -> write_response -> end",
       "description": "Category variation: food vs Food & Dining"
     },
     {
       "id": "gibberish_1",
       "query": "asdfghjkl qwerty 123456",
       "expected_pathway": "router -> unsure -> end",
+      "expected_pathway_v2": "parse -> unsure_response -> end",
       "description": "Gibberish input that should trigger unsure"
     },
     {
       "id": "malformed_negative_amount",
       "query": "spent $-50 on coffee",
       "expected_pathway": "router -> write -> end",
+      "expected_pathway_v2": "parse -> write_response -> end",
       "description": "Malformed: negative amount (should still route to write)"
     },
     {
       "id": "edge_case_empty_string",
       "query": "",
       "expected_pathway": "router -> unsure -> end",
+      "expected_pathway_v2": "parse -> unsure_response -> end",
       "description": "Edge case: empty string"
     }
   ]

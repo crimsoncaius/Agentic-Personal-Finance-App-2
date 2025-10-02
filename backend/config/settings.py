@@ -2,7 +2,7 @@
 Application settings using Pydantic for type-safe configuration management.
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List
 import os
 
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     langfuse_host: str = "https://cloud.langfuse.com"
 
     # Application Settings
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173"
     debug: bool = False
     environment: str = "development"
 
@@ -33,10 +33,11 @@ class Settings(BaseSettings):
     api_description: str = "Personal finance app with natural language processing"
     api_version: str = "1.0.0"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
 
     @property
     def cors_origins_list(self) -> List[str]:
