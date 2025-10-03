@@ -1,5 +1,6 @@
 """
 Main FastAPI application for Expense Tracker MVP
+# Triggering rebuild
 """
 
 from fastapi import FastAPI, HTTPException
