@@ -7,7 +7,9 @@ import type {
   ErrorResponse,
 } from "../types/api";
 
-const API_BASE_URL = "http://localhost:8000/api/v1";
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://your-railway-app.railway.app/api/v1'  // Replace with your actual Railway URL
+  : 'http://localhost:8000/api/v1';
 
 class ApiService {
   private async request<T>(
