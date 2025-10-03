@@ -7,9 +7,9 @@ import type {
   ErrorResponse,
 } from "../types/api";
 
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://agentic-personal-finance-app-2-production.up.railway.app/api/v1'
-  : 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.PROD
+  ? "https://agentic-personal-finance-app-2-production.up.railway.app/api/v1"
+  : "http://localhost:8000/api/v1";
 
 class ApiService {
   private async request<T>(
