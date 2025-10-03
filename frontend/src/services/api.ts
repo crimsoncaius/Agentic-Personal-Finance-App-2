@@ -8,7 +8,7 @@ import type {
 } from "../types/api";
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-railway-app.railway.app/api/v1'  // Replace with your actual Railway URL
+  ? 'https://agentic-personal-finance-app-2-production.up.railway.app/api/v1'
   : 'http://localhost:8000/api/v1';
 
 class ApiService {
