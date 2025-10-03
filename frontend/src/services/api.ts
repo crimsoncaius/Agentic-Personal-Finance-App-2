@@ -1,6 +1,6 @@
 // API Service for Personal Finance App
 
-import {
+import type {
   EntryListResponse,
   ChatRequest,
   ChatResponse,
@@ -32,8 +32,13 @@ class ApiService {
     return response.json();
   }
 
-  async getEntries(): Promise<EntryListResponse> {
-    return this.request<EntryListResponse>("/entries/");
+  async getEntries(
+    limit: number = 10,
+    offset: number = 0
+  ): Promise<EntryListResponse> {
+    return this.request<EntryListResponse>(
+      `/entries/?limit=${limit}&offset=${offset}`
+    );
   }
 
   async sendChatMessage(message: string): Promise<ChatResponse> {

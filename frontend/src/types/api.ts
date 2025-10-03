@@ -8,7 +8,7 @@ export interface CategoryResponse {
 
 export interface EntryResponse {
   id: string;
-  amount: number;
+  amount: number | string;
   direction: "expense" | "income";
   entry_date: string;
   category?: CategoryResponse;
