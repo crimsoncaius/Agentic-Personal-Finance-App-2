@@ -110,6 +110,20 @@ class EntryCreateNL(EntryBase):
     )
 
 
+class EntryUpdate(BaseModel):
+    """Entry update model for partial updates"""
+
+    amount: Optional[Decimal] = Field(None, gt=0, description="Amount in dollars")
+    direction: Optional[EntryDirection] = None
+    entry_date: Optional[date] = None
+    category_id: Optional[UUID] = Field(
+        None,
+        description="Category ID (Food & Dining example)",
+        json_schema_extra={"example": "280463c5-13c4-47f3-a6aa-db24738af1aa"},
+    )
+    description: Optional[str] = Field(None, max_length=500)
+
+
 class Entry(EntryBase):
     """Entry model with database fields"""
 
@@ -164,8 +178,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     """Chat response model"""
 
-    operation: Literal["read", "write"]
-    result: Union[EntryResponse, List[EntryResponse]]
+    operation: Literal["read", "write", "unsure"]
+    result: Union[EntryResponse, List[EntryResponse], List[str]]
     message: str = Field(..., description="User-friendly response message")
 
 

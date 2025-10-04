@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from services.nlp_service import NLPService
+from services.nlp_service_v2 import NLPServiceV2
 from models.schemas import ParsedData, EntryDirection, CategoryResponse, ParseError
 
 pytestmark = [
@@ -20,7 +20,7 @@ pytestmark = [
 ]
 
 
-class TestNLPServiceReal:
+class TestNLPServiceV2Real:
     """Real unit tests for NLP service - Tests with actual OpenAI API calls"""
 
     @pytest.fixture
@@ -32,7 +32,7 @@ class TestNLPServiceReal:
             pytest.skip("OPENAI_API_KEY not set - skipping real unit tests")
 
         try:
-            service = NLPService(openai_key)
+            service = NLPServiceV2(openai_key)
             return service
         except Exception as e:
             pytest.skip(f"OpenAI client initialization failed: {e}")

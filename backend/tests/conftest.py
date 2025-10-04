@@ -74,10 +74,9 @@ def mock_openai_key():
 @pytest.fixture
 def mock_nlp_service():
     """Mock NLP service for testing"""
-    from unittest.mock import MagicMock
-    from services.nlp_service import NLPService
+    from unittest.mock import MagicMock, AsyncMock
 
-    mock_service = MagicMock(spec=NLPService)
+    mock_service = MagicMock()
     mock_service.process_query = AsyncMock()
     return mock_service
 

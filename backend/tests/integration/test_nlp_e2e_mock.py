@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from services.nlp_service import NLPService
+from services.nlp_service_v2 import NLPServiceV2
 from models.schemas import CategoryResponse, EntryDirection
 from database.connection import db_connection
 
@@ -33,9 +33,15 @@ class TestNLPIntegrationMock:
         prompt_manager.generate_router_prompt.return_value = "router prompt"
         prompt_manager.generate_read_prompt.return_value = "read prompt"
         prompt_manager.generate_write_prompt.return_value = "write prompt"
-        prompt_manager.generate_read_response_prompt.return_value = "read response prompt"
-        prompt_manager.generate_write_response_prompt.return_value = "write response prompt"
-        prompt_manager.generate_unsure_response_prompt.return_value = "unsure response prompt"
+        prompt_manager.generate_read_response_prompt.return_value = (
+            "read response prompt"
+        )
+        prompt_manager.generate_write_response_prompt.return_value = (
+            "write response prompt"
+        )
+        prompt_manager.generate_unsure_response_prompt.return_value = (
+            "unsure response prompt"
+        )
 
         env_overrides = {
             "OPENAI_API_KEY": "test-key",
@@ -46,16 +52,15 @@ class TestNLPIntegrationMock:
 
         with patch.dict("os.environ", env_overrides, clear=False), patch(
             "openai.OpenAI", return_value=mock_llm
-        ), patch(
-            "services.nlp_service.db_connection", new=mock_db
-        ), patch(
-            "services.nlp_service.PromptManager", return_value=prompt_manager
+        ), patch("services.nlp_service_v2.db_connection", new=mock_db), patch(
+            "services.nlp_service_v2.PromptManager", return_value=prompt_manager
         ):
-            service = NLPService("test-key")
+            service = NLPServiceV2("test-key")
             service.llm = mock_llm
             service.db = mock_db
             service.prompt_manager = prompt_manager
             return service
+
     @pytest.fixture
     def mock_database_data(self):
         """Mock database data for testing"""
@@ -142,7 +147,9 @@ class TestNLPIntegrationMock:
                 ],
             }
         )
-        nlp_service._read_node.return_value['message'] = 'Here are your matching entries.'
+        nlp_service._read_node.return_value["message"] = (
+            "Here are your matching entries."
+        )
 
         result = await nlp_service.process_query("show me my expenses")
 
@@ -182,7 +189,7 @@ class TestNLPIntegrationMock:
         nlp_service._write_node = AsyncMock(
             return_value={"operation": "write", "result": mock_created_entry}
         )
-        nlp_service._write_node.return_value['message'] = 'Entry created successfully.'
+        nlp_service._write_node.return_value["message"] = "Entry created successfully."
 
         result = await nlp_service.process_query("spent $15 on lunch")
 
@@ -224,7 +231,7 @@ class TestNLPIntegrationMock:
         nlp_service._write_node = AsyncMock(
             return_value={"operation": "write", "result": mock_created_entry}
         )
-        nlp_service._write_node.return_value['message'] = 'Entry created successfully.'
+        nlp_service._write_node.return_value["message"] = "Entry created successfully."
 
         result = await nlp_service.process_query("spent $25 on unknown category")
 
@@ -249,7 +256,9 @@ class TestNLPIntegrationMock:
         nlp_service._read_node = AsyncMock(
             return_value={"operation": "read", "result": []}
         )
-        nlp_service._read_node.return_value['message'] = 'Here are your matching entries.'
+        nlp_service._read_node.return_value["message"] = (
+            "Here are your matching entries."
+        )
 
         result = await nlp_service.process_query("show me expenses from 1900")
 
@@ -270,7 +279,9 @@ class TestNLPIntegrationMock:
         nlp_service._read_node = AsyncMock(
             return_value={"operation": "read", "result": mock_database_data["entries"]}
         )
-        nlp_service._read_node.return_value['message'] = 'Here are your matching entries.'
+        nlp_service._read_node.return_value["message"] = (
+            "Here are your matching entries."
+        )
 
         # Test various read queries
         queries = [
@@ -310,7 +321,7 @@ class TestNLPIntegrationMock:
         nlp_service._write_node = AsyncMock(
             return_value={"operation": "write", "result": mock_created_entry}
         )
-        nlp_service._write_node.return_value['message'] = 'Entry created successfully.'
+        nlp_service._write_node.return_value["message"] = "Entry created successfully."
 
         # Test various write queries
         write_queries = [
@@ -374,7 +385,9 @@ class TestNLPIntegrationMock:
             nlp_service._write_node = AsyncMock(
                 return_value={"operation": "write", "result": mock_created_entry}
             )
-            nlp_service._write_node.return_value['message'] = 'Entry created successfully.'
+            nlp_service._write_node.return_value["message"] = (
+                "Entry created successfully."
+            )
 
             result = await nlp_service.process_query(case["query"])
 
@@ -415,7 +428,9 @@ class TestNLPIntegrationMock:
         nlp_service._read_node = AsyncMock(
             return_value={"operation": "read", "result": mock_database_data["entries"]}
         )
-        nlp_service._read_node.return_value['message'] = 'Here are your matching entries.'
+        nlp_service._read_node.return_value["message"] = (
+            "Here are your matching entries."
+        )
 
         # Create multiple concurrent queries
         queries = [

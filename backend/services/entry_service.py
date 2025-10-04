@@ -14,6 +14,7 @@ from models.schemas import (
     EntryDirection,
     EntryQueryParams,
     EntryResponse,
+    EntryUpdate,
     SourceType,
     cents_to_dollars,
     dollars_to_cents,
@@ -158,3 +159,78 @@ class EntryService:
         entry_data["amount"] = cents_to_dollars(entry_data["amount_cents"])
 
         return Entry(**entry_data)
+
+    @staticmethod
+    async def update_entry(entry_id: UUID, update_data: EntryUpdate) -> Optional[Entry]:
+        """Update an existing entry"""
+        # Check if entry exists
+        existing_entry = await EntryService.get_entry_by_id(entry_id)
+        if not existing_entry:
+            return None
+
+        # Prepare update data (only include fields that are provided)
+        update_dict = {}
+
+        if update_data.amount is not None:
+            if update_data.amount <= 0:
+                raise ValueError("Amount must be positive")
+            update_dict["amount_cents"] = dollars_to_cents(update_data.amount)
+
+        if update_data.direction is not None:
+            direction_value = (
+                update_data.direction.value
+                if isinstance(update_data.direction, EntryDirection)
+                else update_data.direction
+            )
+            if direction_value not in ["expense", "income"]:
+                raise ValueError("Direction must be 'expense' or 'income'")
+            update_dict["direction"] = direction_value
+
+        if update_data.entry_date is not None:
+            update_dict["entry_date"] = update_data.entry_date.isoformat()
+
+        if update_data.category_id is not None:
+            update_dict["category_id"] = str(update_data.category_id)
+
+        if update_data.description is not None:
+            update_dict["description"] = update_data.description
+
+        # If no fields to update, return existing entry
+        if not update_dict:
+            return existing_entry
+
+        # Update the entry
+        result = (
+            db_connection.client.table("entry")
+            .update(update_dict)
+            .eq("id", str(entry_id))
+            .execute()
+        )
+
+        if not result.data:
+            raise ValueError("Failed to update entry")
+
+        # Get the updated entry
+        updated_entry = result.data[0]
+        updated_entry["amount"] = cents_to_dollars(updated_entry["amount_cents"])
+
+        return Entry(**updated_entry)
+
+    @staticmethod
+    async def delete_entry(entry_id: UUID) -> bool:
+        """Delete an entry by ID"""
+        # Check if entry exists
+        existing_entry = await EntryService.get_entry_by_id(entry_id)
+        if not existing_entry:
+            return False
+
+        # Delete the entry
+        result = (
+            db_connection.client.table("entry")
+            .delete()
+            .eq("id", str(entry_id))
+            .execute()
+        )
+
+        # Check if deletion was successful
+        return result.data is not None

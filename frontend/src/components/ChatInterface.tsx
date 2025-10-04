@@ -60,15 +60,18 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
         id: (Date.now() + 2).toString(),
         type: "assistant",
         content: response.message,
-        entries: Array.isArray(response.result)
-          ? response.result
-          : [response.result],
+        entries:
+          response.operation === "unsure"
+            ? undefined // Don't show entries for unsure operations
+            : Array.isArray(response.result)
+            ? response.result
+            : [response.result],
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Trigger refresh if entries were created
-      if (response.result && onEntryCreated) {
+      // Trigger refresh if entries were created (only for write operations)
+      if (response.operation === "write" && response.result && onEntryCreated) {
         onEntryCreated();
       }
     } catch (error) {

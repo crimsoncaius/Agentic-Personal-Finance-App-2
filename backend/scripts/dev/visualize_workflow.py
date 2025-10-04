@@ -14,10 +14,10 @@ sys.path.insert(0, str(backend_dir))
 
 # Try both import paths to handle running from different directories
 try:
-    from services.nlp_service import NLPService
+    from services.nlp_service_v1 import NLPService
 except ImportError:
     # If running from project root, try backend.services
-    from backend.services.nlp_service import NLPService
+    from backend.services.nlp_service_v1 import NLPService
 
 
 def visualize_workflow():

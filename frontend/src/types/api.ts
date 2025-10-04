@@ -32,8 +32,8 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
-  operation: "read" | "write";
-  result: EntryResponse | EntryResponse[];
+  operation: "read" | "write" | "unsure";
+  result: EntryResponse | EntryResponse[] | string[];
   message: string;
 }
 

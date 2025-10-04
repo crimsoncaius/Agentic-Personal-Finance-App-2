@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from services.nlp_service import NLPService
+from services.nlp_service_v2 import NLPServiceV2
 from models.schemas import ParsedData, EntryDirection, CategoryResponse, ParseError, ErrorDetail
 
 pytestmark = [
@@ -18,7 +18,7 @@ pytestmark = [
 ]
 
 
-class TestNLPServiceMock:
+class TestNLPServiceV2Mock:
     """Mock unit tests for NLP service - Fast unit tests"""
 
 
@@ -47,11 +47,11 @@ class TestNLPServiceMock:
         with patch.dict("os.environ", env_overrides, clear=False), patch(
             "openai.OpenAI", return_value=mock_llm
         ), patch(
-            "services.nlp_service.db_connection", new=mock_db
+            "services.nlp_service_v2.db_connection", new=mock_db
         ), patch(
-            "services.nlp_service.PromptManager", return_value=prompt_manager
+            "services.nlp_service_v2.PromptManager", return_value=prompt_manager
         ):
-            service = NLPService("test-key")
+            service = NLPServiceV2("test-key")
             service.llm = mock_llm
             service.prompt_manager = prompt_manager
             service.db = mock_db

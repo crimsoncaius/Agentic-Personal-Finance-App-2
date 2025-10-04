@@ -8,7 +8,7 @@ from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from main import app
-from services.nlp_service import NLPService
+from services.nlp_factory import create_nlp_service
 from models.schemas import ParseError, ErrorDetail
 
 pytestmark = [
@@ -30,7 +30,9 @@ class TestChatE2EMock:
     @pytest.fixture
     def mock_nlp_service(self):
         """Mock NLP service for testing"""
-        mock_service = MagicMock(spec=NLPService)
+        # Create a mock that matches the factory return type
+        mock_service = MagicMock()
+        mock_service.process_query = AsyncMock()
         return mock_service
 
     def test_chat_read_operation_success(self, client, mock_nlp_service):
@@ -60,8 +62,8 @@ class TestChatE2EMock:
             }
         )
 
-        with patch("routes.chat.NLPService") as mock_nlp_class:
-            mock_nlp_class.return_value = mock_nlp_service
+        with patch("routes.chat.create_nlp_service") as mock_factory:
+            mock_factory.return_value = mock_nlp_service
             response = client.post(
                 "/api/v1/chat/", json={"text": "show me my expenses"}
             )
@@ -105,8 +107,8 @@ class TestChatE2EMock:
             }
         )
 
-        with patch("routes.chat.NLPService") as mock_nlp_class:
-            mock_nlp_class.return_value = mock_nlp_service
+        with patch("routes.chat.create_nlp_service") as mock_factory:
+            mock_factory.return_value = mock_nlp_service
             response = client.post(
                 "/api/v1/chat/", json={"text": "spent $20 on coffee"}
             )
@@ -131,8 +133,8 @@ class TestChatE2EMock:
             )
         )
 
-        with patch("routes.chat.NLPService") as mock_nlp_class:
-            mock_nlp_class.return_value = mock_nlp_service
+        with patch("routes.chat.create_nlp_service") as mock_factory:
+            mock_factory.return_value = mock_nlp_service
             response = client.post(
                 "/api/v1/chat/", json={"text": "spent money on food"}
             )
@@ -164,8 +166,8 @@ class TestChatE2EMock:
             side_effect=Exception("Service error")
         )
 
-        with patch("routes.chat.NLPService") as mock_nlp_class:
-            mock_nlp_class.return_value = mock_nlp_service
+        with patch("routes.chat.create_nlp_service") as mock_factory:
+            mock_factory.return_value = mock_nlp_service
             response = client.post("/api/v1/chat/", json={"text": "some input"})
 
             assert response.status_code == 500
@@ -243,8 +245,8 @@ class TestChatE2EMock:
                 return_value=case["mock_response"]
             )
 
-            with patch("routes.chat.NLPService") as mock_nlp_class:
-                mock_nlp_class.return_value = mock_nlp_service
+            with patch("routes.chat.create_nlp_service") as mock_factory:
+                mock_factory.return_value = mock_nlp_service
                 response = client.post("/api/v1/chat/", json={"text": case["input"]})
 
                 assert response.status_code == 200
@@ -300,8 +302,8 @@ class TestChatE2EMock:
                 return_value=case["mock_response"]
             )
 
-            with patch("routes.chat.NLPService") as mock_nlp_class:
-                mock_nlp_class.return_value = mock_nlp_service
+            with patch("routes.chat.create_nlp_service") as mock_factory:
+                mock_factory.return_value = mock_nlp_service
                 response = client.post("/api/v1/chat/", json={"text": case["input"]})
 
                 assert response.status_code == case["expected_status"]
@@ -313,11 +315,15 @@ class TestChatE2EMock:
     def test_chat_performance(self, client, mock_nlp_service):
         """Test chat endpoint responds once per request"""
         mock_nlp_service.process_query = AsyncMock(
-            return_value={"operation": "read", "result": [], "message": "Here are your matching entries."}
+            return_value={
+                "operation": "read",
+                "result": [],
+                "message": "Here are your matching entries.",
+            }
         )
 
-        with patch("routes.chat.NLPService") as mock_nlp_class:
-            mock_nlp_class.return_value = mock_nlp_service
+        with patch("routes.chat.create_nlp_service") as mock_factory:
+            mock_factory.return_value = mock_nlp_service
             response = client.post("/api/v1/chat/", json={"text": "show me expenses"})
 
         assert response.status_code == 200
@@ -329,11 +335,15 @@ class TestChatE2EMock:
         import asyncio
 
         mock_nlp_service.process_query = AsyncMock(
-            return_value={"operation": "read", "result": [], "message": "Here are your matching entries."}
+            return_value={
+                "operation": "read",
+                "result": [],
+                "message": "Here are your matching entries.",
+            }
         )
 
-        with patch("routes.chat.NLPService") as mock_nlp_class:
-            mock_nlp_class.return_value = mock_nlp_service
+        with patch("routes.chat.create_nlp_service") as mock_factory:
+            mock_factory.return_value = mock_nlp_service
             transport = ASGITransport(app=app)
             async with AsyncClient(
                 transport=transport, base_url="http://test"

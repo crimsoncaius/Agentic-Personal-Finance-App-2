@@ -15,6 +15,7 @@ from models.schemas import (
     EntryListResponse,
     EntryQueryParams,
     EntryResponse,
+    EntryUpdate,
     ErrorResponse,
     ParseError,
 )
@@ -97,5 +98,56 @@ async def get_entries(
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.patch("/{entry_id}", response_model=EntryResponse)
+async def update_entry(entry_id: UUID, entry_update: EntryUpdate):
+    """Update an existing entry with partial data"""
+    try:
+        updated_entry = await EntryService.update_entry(entry_id, entry_update)
+
+        if updated_entry is None:
+            raise HTTPException(status_code=404, detail="Entry not found")
+
+        # Convert to response format
+        response_data = {
+            "id": updated_entry.id,
+            "amount": float(
+                updated_entry.amount
+            ),  # Convert Decimal to float for JSON serialization
+            "direction": updated_entry.direction,
+            "entry_date": updated_entry.entry_date,
+            "category": None,  # TODO: Load category data if needed
+            "description": updated_entry.description,
+            "source": updated_entry.source,
+            "parse_confidence": updated_entry.parse_confidence,
+            "created_at": updated_entry.created_at,
+        }
+
+        return EntryResponse(**response_data)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.delete("/{entry_id}")
+async def delete_entry(entry_id: UUID):
+    """Delete an entry by ID"""
+    try:
+        deleted = await EntryService.delete_entry(entry_id)
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Entry not found")
+
+        return {"message": "Entry deleted successfully"}
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")

@@ -1,6 +1,6 @@
 """
-LangGraph-based NLP service V2 for Expense Tracker MVP
-Unified approach: single LLM call for parsing + operation detection, then response generation
+LangGraph-based NLP service for Expense Tracker MVP
+Handles natural language processing for both read and write operations
 """
 
 import json
@@ -15,7 +15,6 @@ from pydantic import ValidationError
 
 # Try both import paths to handle running from different directories
 try:
-    # First try direct imports (when running from backend directory)
     from database.connection import db_connection
     from models.schemas import (
         CategoryResponse,
@@ -27,7 +26,7 @@ try:
         ErrorDetail,
     )
     from services.prompt_manager import PromptManager
-    from services.langfuse_service_v2 import langfuse_service_v3 as langfuse_service
+    from services.langfuse_service import langfuse_service_v2 as langfuse_service
 except ImportError:
     # If running from project root, try backend.*
     from backend.database.connection import db_connection
@@ -41,13 +40,13 @@ except ImportError:
         ErrorDetail,
     )
     from backend.services.prompt_manager import PromptManager
-    from backend.services.langfuse_service_v2 import (
-        langfuse_service_v3 as langfuse_service,
+    from backend.services.langfuse_service import (
+        langfuse_service_v2 as langfuse_service,
     )
 
 
-class NLPServiceV2:
-    """Unified LangGraph-based NLP service for processing natural language queries"""
+class NLPServiceV1:
+    """LangGraph-based NLP service for processing natural language queries"""
 
     def __init__(self, openai_api_key: str = None):
         """Initialize the NLP service with OpenAI API key"""
@@ -92,11 +91,11 @@ class NLPServiceV2:
         """
         # Create main trace for the entire query processing
         async with self.langfuse.trace_operation(
-            name="nlp_query_processing_v2",
+            name="nlp_query_processing",
             user_id=user_id,
             session_id=session_id,
             input_data={"text": text},
-            tags=["nlp", "query_processing", "v2"],
+            tags=["nlp", "query_processing"],
         ) as trace_id:
             try:
                 start_time = time.time()
@@ -111,7 +110,7 @@ class NLPServiceV2:
                 total_duration = time.time() - start_time
 
                 # Track performance metrics
-                self.langfuse.track_performance_metrics_v2(
+                self.langfuse.track_performance_metrics(
                     operation="query_processing",
                     trace_id=trace_id,
                     metrics={
@@ -153,7 +152,7 @@ class NLPServiceV2:
 
             except Exception as e:
                 # Track error metrics
-                self.langfuse.track_performance_metrics_v2(
+                self.langfuse.track_performance_metrics(
                     operation="query_processing",
                     trace_id=trace_id,
                     metrics={
@@ -170,7 +169,7 @@ class NLPServiceV2:
                 )
 
     def _create_workflow(self) -> StateGraph:
-        """Create the simplified LangGraph workflow with Parse and Response nodes"""
+        """Create the LangGraph workflow with Router, Read, and Write nodes"""
 
         # Define the state type as a TypedDict for LangGraph
         from typing import TypedDict
@@ -178,7 +177,6 @@ class NLPServiceV2:
         class WorkflowState(TypedDict):
             text: str
             operation: Optional[str]
-            data: Optional[Dict]
             result: Optional[Union[Dict, List]]
             error: Optional[ParseError]
             message: Optional[str]
@@ -188,27 +186,23 @@ class NLPServiceV2:
         workflow = StateGraph(WorkflowState)
 
         # Add nodes
-        workflow.add_node("parse", self._parse_node)
-        workflow.add_node("read_response", self._read_response_node)
-        workflow.add_node("write_response", self._write_response_node)
-        workflow.add_node("unsure_response", self._unsure_response_node)
+        workflow.add_node("router", self._router_node)
+        workflow.add_node("read", self._read_node)
+        workflow.add_node("write", self._write_node)
+        workflow.add_node("unsure", self._unsure_node)
 
-        # Add conditional edges from parse
+        # Add conditional edges from router
         workflow.add_conditional_edges(
-            "parse",
+            "router",
             lambda state: state.get("operation", "read"),
-            {
-                "read": "read_response",
-                "write": "write_response",
-                "unsure": "unsure_response",
-            },
+            {"read": "read", "write": "write", "unsure": "unsure"},
         )
-        workflow.add_edge("read_response", END)
-        workflow.add_edge("write_response", END)
-        workflow.add_edge("unsure_response", END)
+        workflow.add_edge("read", END)
+        workflow.add_edge("write", END)
+        workflow.add_edge("unsure", END)
 
         # Set entry point
-        workflow.set_entry_point("parse")
+        workflow.set_entry_point("router")
 
         return workflow.compile()
 
@@ -239,13 +233,82 @@ class NLPServiceV2:
             "end_points": ["__end__"],
         }
 
-    async def _parse_node(self, state: Dict) -> Dict:
-        """Unified parse node that handles both operation detection and data extraction"""
+    def visualize_workflow(self) -> str:
+        """Get the actual Mermaid diagram from LangGraph"""
+        workflow = self._create_workflow()
+        return workflow.get_graph().draw_mermaid()
+
+    async def _router_node(self, state: Dict) -> Dict:
+        """Router node that determines if input is READ or WRITE operation"""
         trace_id = state.get("trace_id")
 
-        # Track parse node execution
+        # Track router node execution
         async with self.langfuse.span_operation(
-            name="parse_node", trace_id=trace_id, input_data={"text": state["text"]}
+            name="router_node", trace_id=trace_id, input_data={"text": state["text"]}
+        ) as span_id:
+            try:
+                start_time = time.time()
+
+                # Generate prompt using template
+                prompt = self.prompt_manager.generate_router_prompt(state["text"])
+
+                # Use Langfuse-tracked LLM call
+                response, generation_id = await self.langfuse.track_llm_call(
+                    name="router_classification",
+                    model="gpt-4.1-nano",
+                    messages=[{"role": "user", "content": prompt}],
+                    trace_id=trace_id,
+                    parent_id=span_id,
+                    temperature=0.1,
+                )
+
+                operation = response.choices[0].message.content.strip().upper()
+
+                if operation not in ["READ", "WRITE", "UNSURE"]:
+                    operation = "UNSURE"  # Default to UNSURE for invalid responses
+
+                # Update the state with the operation
+                state["operation"] = operation.lower()
+
+                # Track router performance
+                duration = time.time() - start_time
+                self.langfuse.track_workflow_node(
+                    node_name="router",
+                    trace_id=trace_id,
+                    parent_id=span_id,
+                    input_data={"text": state["text"]},
+                    output_data={"operation": operation.lower()},
+                    duration=duration,
+                )
+
+                return state
+
+            except Exception as e:
+                duration = time.time() - start_time
+                self.langfuse.track_workflow_node(
+                    node_name="router",
+                    trace_id=trace_id,
+                    parent_id=span_id,
+                    input_data={"text": state["text"]},
+                    output_data=None,
+                    duration=duration,
+                    error=str(e),
+                )
+
+                state["error"] = ParseError(
+                    code="parsing_failed",
+                    message="Failed to determine operation type",
+                    details=ErrorDetail(suggestions=["Try rephrasing your request"]),
+                )
+                return state
+
+    async def _read_node(self, state: Dict) -> Dict:
+        """Read node that generates query parameters from natural language"""
+        trace_id = state.get("trace_id")
+
+        # Track read node execution
+        async with self.langfuse.span_operation(
+            name="read_node", trace_id=trace_id, input_data={"text": state["text"]}
         ) as span_id:
             try:
                 start_time = time.time()
@@ -257,157 +320,90 @@ class NLPServiceV2:
                 # Get current date for context
                 current_date = date.today()
 
-                # Generate unified prompt
-                prompt = self.prompt_manager.generate_unified_prompt(
+                # Generate prompt using template
+                prompt = self.prompt_manager.generate_read_prompt(
                     state["text"], current_date, category_list
                 )
 
-                # Use Langfuse-tracked LLM call for unified parsing
-                response, generation_id = await self.langfuse.track_unified_llm_call(
-                    name="unified_parse",
+                # Use Langfuse-tracked LLM call for query parsing
+                response, generation_id = await self.langfuse.track_llm_call(
+                    name="read_query_parsing",
                     model="gpt-4.1-nano",
                     messages=[{"role": "user", "content": prompt}],
                     trace_id=trace_id,
                     parent_id=span_id,
                     temperature=0.1,
-                    operation_type="unified_parse",
                 )
                 content = response.choices[0].message.content.strip()
 
                 try:
-                    parsed_response = json.loads(content)
+                    query_params = json.loads(content)
+                    # Validate query parameters
+                    validated_params = QueryParams(**query_params)
 
-                    # Validate the response structure
-                    if (
-                        "operation" not in parsed_response
-                        or "data" not in parsed_response
-                    ):
-                        raise ValueError("Invalid response structure")
+                    # Execute the query with database tracing
+                    query_start = time.time()
+                    entries = await self._execute_read_query(validated_params, trace_id)
+                    query_duration = time.time() - query_start
 
-                    operation = parsed_response["operation"].lower()
-                    data = parsed_response["data"]
-                    message = parsed_response.get("message", "")
-
-                    # Update state with parsed information
-                    state["operation"] = operation
-                    state["data"] = data
-                    state["message"] = message
-
-                    # Process based on operation type
-                    if operation == "read":
-                        # Validate and execute read query
-                        query_params = QueryParams(**data)
-                        query_start = time.time()
-                        entries = await self._execute_read_query(query_params, trace_id)
-                        query_duration = time.time() - query_start
-
-                        # Track database operation
-                        self.langfuse.track_database_operation(
-                            operation="select",
-                            table="entry",
-                            trace_id=trace_id,
-                            parent_id=span_id,
-                            query_params=(
-                                data.model_dump()
-                                if hasattr(data, "model_dump")
-                                else (
-                                    data.dict() if hasattr(data, "dict") else str(data)
-                                )
-                            ),
-                            result_count=len(entries),
-                            duration=query_duration,
-                        )
-                        state["result"] = entries
-
-                    elif operation == "write":
-                        # Validate and create entry
-                        # Convert date string to date object if present
-                        if "date" in data:
-                            data["entry_date"] = datetime.strptime(
-                                data["date"], "%Y-%m-%d"
-                            ).date()
-                            del data["date"]
-
-                        validated_data = ParsedData(**data)
-                        entry_start = time.time()
-                        entry = await self._create_entry(validated_data, trace_id)
-                        entry_duration = time.time() - entry_start
-
-                        # Track database operation
-                        self.langfuse.track_database_operation(
-                            operation="insert",
-                            table="entry",
-                            trace_id=trace_id,
-                            parent_id=span_id,
-                            query_params={
-                                "amount": validated_data.amount,
-                                "direction": validated_data.direction.value,
-                            },
-                            result_count=1,
-                            duration=entry_duration,
-                        )
-                        state["result"] = entry
-
-                    elif operation == "unsure":
-                        # Handle unsure case
-                        state["result"] = data.get("suggestions", [])
-
-                    else:
-                        raise ValueError(f"Unknown operation: {operation}")
-
-                    # Track parse operation success
-                    duration = time.time() - start_time
-                    self.langfuse.track_parse_operation(
+                    # Track database operation
+                    self.langfuse.track_database_operation(
+                        operation="select",
+                        table="entry",
                         trace_id=trace_id,
                         parent_id=span_id,
-                        input_text=state["text"],
-                        parsed_data=data,
-                        operation=operation,
-                        duration=duration,
+                        query_params=(
+                            query_params.model_dump()
+                            if hasattr(query_params, "model_dump")
+                            else (
+                                query_params.dict()
+                                if hasattr(query_params, "dict")
+                                else str(query_params)
+                            )
+                        ),
+                        result_count=len(entries),
+                        duration=query_duration,
                     )
 
-                    # Track workflow node performance
-                    self.langfuse.track_workflow_node_v2(
-                        node_name="parse",
+                    # Generate user-friendly response using LLM
+                    response_prompt = self.prompt_manager.generate_read_response_prompt(
+                        state["text"], entries, validated_params, current_date
+                    )
+                    response_message = await self._call_llm_for_response(
+                        response_prompt, trace_id, span_id
+                    )
+
+                    state["result"] = entries
+                    state["message"] = response_message
+
+                    # Track read node performance
+                    duration = time.time() - start_time
+                    self.langfuse.track_workflow_node(
+                        node_name="read",
                         trace_id=trace_id,
                         parent_id=span_id,
                         input_data={"text": state["text"]},
-                        output_data={
-                            "operation": operation,
-                            "data_keys": list(data.keys()),
-                        },
+                        output_data={"entries_count": len(entries)},
                         duration=duration,
-                        operation_type="unified_parse",
                     )
 
                     return state
 
-                except (json.JSONDecodeError, ValidationError, ValueError) as e:
+                except (json.JSONDecodeError, ValidationError) as e:
                     duration = time.time() - start_time
-                    self.langfuse.track_parse_operation(
-                        trace_id=trace_id,
-                        parent_id=span_id,
-                        input_text=state["text"],
-                        parsed_data=None,
-                        operation=None,
-                        duration=duration,
-                        error=f"Parse error: {str(e)}",
-                    )
-
-                    self.langfuse.track_workflow_node_v2(
-                        node_name="parse",
+                    self.langfuse.track_workflow_node(
+                        node_name="read",
                         trace_id=trace_id,
                         parent_id=span_id,
                         input_data={"text": state["text"]},
                         output_data=None,
                         duration=duration,
                         error=f"Parse error: {str(e)}",
-                        operation_type="unified_parse",
                     )
 
                     state["error"] = ParseError(
                         code="parsing_failed",
-                        message="Failed to parse response from LLM",
+                        message="Failed to parse query parameters",
                         details=ErrorDetail(
                             suggestions=["Try rephrasing your request"]
                         ),
@@ -416,282 +412,219 @@ class NLPServiceV2:
 
             except Exception as e:
                 duration = time.time() - start_time
-                self.langfuse.track_parse_operation(
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_text=state["text"],
-                    parsed_data=None,
-                    operation=None,
-                    duration=duration,
-                    error=str(e),
-                )
-
-                self.langfuse.track_workflow_node_v2(
-                    node_name="parse",
+                self.langfuse.track_workflow_node(
+                    node_name="read",
                     trace_id=trace_id,
                     parent_id=span_id,
                     input_data={"text": state["text"]},
                     output_data=None,
                     duration=duration,
                     error=str(e),
-                    operation_type="unified_parse",
                 )
 
                 state["error"] = ParseError(
                     code="parsing_failed",
-                    message="Failed to process query",
+                    message="Failed to process read request",
                     details=ErrorDetail(suggestions=["Try rephrasing your request"]),
                 )
                 return state
 
-    async def _read_response_node(self, state: Dict) -> Dict:
-        """Generate user-friendly response for read operations"""
+    async def _write_node(self, state: Dict) -> Dict:
+        """Write node that extracts structured data from natural language"""
         trace_id = state.get("trace_id")
 
-        # Track read response node execution
+        # Track write node execution
         async with self.langfuse.span_operation(
-            name="read_response_node",
-            trace_id=trace_id,
-            input_data={
-                "operation": "read",
-                "entries_count": len(state.get("result", [])),
-            },
+            name="write_node", trace_id=trace_id, input_data={"text": state["text"]}
         ) as span_id:
             try:
                 start_time = time.time()
 
-                # Generate response using existing template
-                response_prompt = self.prompt_manager.generate_read_response_prompt(
-                    state["text"],
-                    state["result"],
-                    QueryParams(**state["data"]),
-                    date.today(),
-                )
-                response_message = await self._call_llm_for_response(
-                    response_prompt, trace_id, span_id
-                )
-                state["message"] = response_message
+                # Get categories for context
+                categories = await self._get_categories()
+                category_list = [f"{cat.name} ({cat.type})" for cat in categories]
 
-                # Track response operation
-                duration = time.time() - start_time
-                self.langfuse.track_response_operation(
-                    response_type="read",
+                # Get current date for context
+                current_date = date.today()
+
+                # Generate prompt using template
+                prompt = self.prompt_manager.generate_write_prompt(
+                    state["text"], category_list, current_date
+                )
+
+                # Use Langfuse-tracked LLM call for data extraction
+                response, generation_id = await self.langfuse.track_llm_call(
+                    name="write_data_extraction",
+                    model="gpt-4.1-nano",
+                    messages=[{"role": "user", "content": prompt}],
                     trace_id=trace_id,
                     parent_id=span_id,
-                    input_data={"entries_count": len(state.get("result", []))},
-                    response_message=response_message,
-                    duration=duration,
+                    temperature=0.1,
                 )
+                content = response.choices[0].message.content.strip()
 
-                # Track workflow node performance
-                self.langfuse.track_workflow_node_v2(
-                    node_name="read_response",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"entries_count": len(state.get("result", []))},
-                    output_data={"message_length": len(response_message)},
-                    duration=duration,
-                    operation_type="response_generation",
-                )
+                try:
+                    parsed_data = json.loads(content)
 
-                return state
+                    # Convert date string to date object
+                    if "date" in parsed_data:
+                        parsed_data["entry_date"] = datetime.strptime(
+                            parsed_data["date"], "%Y-%m-%d"
+                        ).date()
+                        del parsed_data["date"]
+
+                    validated_data = ParsedData(**parsed_data)
+
+                    # Create the entry with database tracing
+                    entry_start = time.time()
+                    entry = await self._create_entry(validated_data)
+                    entry_duration = time.time() - entry_start
+
+                    # Track database operation
+                    self.langfuse.track_database_operation(
+                        operation="insert",
+                        table="entry",
+                        trace_id=trace_id,
+                        parent_id=span_id,
+                        query_params={
+                            "amount": validated_data.amount,
+                            "direction": validated_data.direction.value,
+                        },
+                        result_count=1,
+                        duration=entry_duration,
+                    )
+
+                    # Generate user-friendly response using LLM
+                    response_prompt = (
+                        self.prompt_manager.generate_write_response_prompt(
+                            state["text"], entry, current_date
+                        )
+                    )
+                    response_message = await self._call_llm_for_response(
+                        response_prompt, trace_id, span_id
+                    )
+
+                    state["result"] = entry
+                    state["message"] = response_message
+
+                    # Track write node performance
+                    duration = time.time() - start_time
+                    self.langfuse.track_workflow_node(
+                        node_name="write",
+                        trace_id=trace_id,
+                        parent_id=span_id,
+                        input_data={"text": state["text"]},
+                        output_data={"entry_id": entry.get("id")},
+                        duration=duration,
+                    )
+
+                    return state
+
+                except (json.JSONDecodeError, ValidationError) as e:
+                    duration = time.time() - start_time
+                    self.langfuse.track_workflow_node(
+                        node_name="write",
+                        trace_id=trace_id,
+                        parent_id=span_id,
+                        input_data={"text": state["text"]},
+                        output_data=None,
+                        duration=duration,
+                        error=f"Parse error: {str(e)}",
+                    )
+
+                    state["error"] = ParseError(
+                        code="missing_fields",
+                        message="Could not extract required fields from your input",
+                        details=ErrorDetail(
+                            missing_fields=["amount", "direction", "date"],
+                            suggestions=["Try: 'spent $20 on coffee yesterday'"],
+                        ),
+                    )
+                    return state
 
             except Exception as e:
                 duration = time.time() - start_time
-                # Fallback to simple message
-                state["message"] = (
-                    f"Found {len(state['result'])} entries matching your criteria."
-                )
-
-                self.langfuse.track_response_operation(
-                    response_type="read",
+                self.langfuse.track_workflow_node(
+                    node_name="write",
                     trace_id=trace_id,
                     parent_id=span_id,
-                    input_data={"entries_count": len(state.get("result", []))},
-                    response_message=state["message"],
+                    input_data={"text": state["text"]},
+                    output_data=None,
                     duration=duration,
                     error=str(e),
                 )
 
-                self.langfuse.track_workflow_node_v2(
-                    node_name="read_response",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"entries_count": len(state.get("result", []))},
-                    output_data={"fallback_message": state["message"]},
-                    duration=duration,
-                    error=str(e),
-                    operation_type="response_generation",
+                state["error"] = ParseError(
+                    code="parsing_failed",
+                    message="Failed to process write request",
+                    details=ErrorDetail(suggestions=["Try rephrasing your request"]),
                 )
-
                 return state
 
-    async def _write_response_node(self, state: Dict) -> Dict:
-        """Generate user-friendly response for write operations"""
+    async def _unsure_node(self, state: Dict) -> Dict:
+        """Unsure node that handles ambiguous routing cases"""
         trace_id = state.get("trace_id")
 
-        # Track write response node execution
+        # Track unsure node execution
         async with self.langfuse.span_operation(
-            name="write_response_node",
-            trace_id=trace_id,
-            input_data={
-                "operation": "write",
-                "entry_id": state.get("result", {}).get("id"),
-            },
+            name="unsure_node", trace_id=trace_id, input_data={"text": state["text"]}
         ) as span_id:
             try:
                 start_time = time.time()
 
-                # Generate response using existing template
-                response_prompt = self.prompt_manager.generate_write_response_prompt(
-                    state["text"], state["result"], date.today()
-                )
-                response_message = await self._call_llm_for_response(
-                    response_prompt, trace_id, span_id
-                )
-                state["message"] = response_message
+                # For unsure cases, we'll provide helpful suggestions to the user
+                # and ask them to clarify their intent
+                suggestions = [
+                    "To view your expenses, try: 'show my recent expenses' or 'what did I spend this month?'",
+                    "To add an expense, try: 'spent $20 on coffee' or 'add $50 for groceries'",
+                    "To add income, try: 'earned $1000 salary' or 'received $200 gift'",
+                    "To view income, try: 'show my income' or 'what did I earn this month?'",
+                ]
 
-                # Track response operation
-                duration = time.time() - start_time
-                self.langfuse.track_response_operation(
-                    response_type="write",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"entry_id": state.get("result", {}).get("id")},
-                    response_message=response_message,
-                    duration=duration,
-                )
-
-                # Track workflow node performance
-                self.langfuse.track_workflow_node_v2(
-                    node_name="write_response",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"entry_id": state.get("result", {}).get("id")},
-                    output_data={"message_length": len(response_message)},
-                    duration=duration,
-                    operation_type="response_generation",
-                )
-
-                return state
-
-            except Exception as e:
-                duration = time.time() - start_time
-                # Fallback to simple message
-                state["message"] = (
-                    f"Successfully created entry: {state['result'].get('description', 'New entry')}"
-                )
-
-                self.langfuse.track_response_operation(
-                    response_type="write",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"entry_id": state.get("result", {}).get("id")},
-                    response_message=state["message"],
-                    duration=duration,
-                    error=str(e),
-                )
-
-                self.langfuse.track_workflow_node_v2(
-                    node_name="write_response",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"entry_id": state.get("result", {}).get("id")},
-                    output_data={"fallback_message": state["message"]},
-                    duration=duration,
-                    error=str(e),
-                    operation_type="response_generation",
-                )
-
-                return state
-
-    async def _unsure_response_node(self, state: Dict) -> Dict:
-        """Generate user-friendly response for unsure operations"""
-        trace_id = state.get("trace_id")
-
-        # Track unsure response node execution
-        async with self.langfuse.span_operation(
-            name="unsure_response_node",
-            trace_id=trace_id,
-            input_data={
-                "operation": "unsure",
-                "suggestions_count": len(state.get("result", [])),
-            },
-        ) as span_id:
-            try:
-                start_time = time.time()
-
-                # Generate response using existing template
+                # Generate helpful response message using LLM
                 response_prompt = self.prompt_manager.generate_unsure_response_prompt(
-                    state["text"], date.today()
+                    state["text"]
                 )
                 response_message = await self._call_llm_for_response(
                     response_prompt, trace_id, span_id
                 )
-                state["message"] = response_message
 
-                # Track response operation
-                duration = time.time() - start_time
-                self.langfuse.track_response_operation(
-                    response_type="unsure",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"suggestions_count": len(state.get("result", []))},
-                    response_message=response_message,
-                    duration=duration,
-                )
-
-                # Track workflow node performance
-                self.langfuse.track_workflow_node_v2(
-                    node_name="unsure_response",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"suggestions_count": len(state.get("result", []))},
-                    output_data={"message_length": len(response_message)},
-                    duration=duration,
-                    operation_type="response_generation",
-                )
-
-                # Set up error for proper handling
                 state["error"] = ParseError(
                     code="ambiguous",
                     message="I'm not sure if you want to view existing entries or create a new one. Could you please clarify?",
-                    details=ErrorDetail(suggestions=state["result"]),
+                    details=ErrorDetail(suggestions=suggestions),
                 )
+                state["message"] = response_message
+
+                # Track unsure node performance
+                duration = time.time() - start_time
+                self.langfuse.track_workflow_node(
+                    node_name="unsure",
+                    trace_id=trace_id,
+                    parent_id=span_id,
+                    input_data={"text": state["text"]},
+                    output_data={"suggestions_count": len(suggestions)},
+                    duration=duration,
+                )
+
                 return state
 
             except Exception as e:
                 duration = time.time() - start_time
-                # Fallback to simple message
-                state["message"] = (
-                    "I'm not sure what you'd like to do. Could you please clarify?"
-                )
-
-                self.langfuse.track_response_operation(
-                    response_type="unsure",
+                self.langfuse.track_workflow_node(
+                    node_name="unsure",
                     trace_id=trace_id,
                     parent_id=span_id,
-                    input_data={"suggestions_count": len(state.get("result", []))},
-                    response_message=state["message"],
+                    input_data={"text": state["text"]},
+                    output_data=None,
                     duration=duration,
                     error=str(e),
-                )
-
-                self.langfuse.track_workflow_node_v2(
-                    node_name="unsure_response",
-                    trace_id=trace_id,
-                    parent_id=span_id,
-                    input_data={"suggestions_count": len(state.get("result", []))},
-                    output_data={"fallback_message": state["message"]},
-                    duration=duration,
-                    error=str(e),
-                    operation_type="response_generation",
                 )
 
                 state["error"] = ParseError(
-                    code="ambiguous",
-                    message="I'm not sure what you'd like to do. Could you please clarify?",
-                    details=ErrorDetail(suggestions=state["result"]),
+                    code="parsing_failed",
+                    message="Failed to process ambiguous request",
+                    details=ErrorDetail(suggestions=["Try rephrasing your request"]),
                 )
                 return state
 
@@ -786,7 +719,7 @@ class NLPServiceV2:
         except Exception as e:
             raise Exception(f"Failed to execute read query: {str(e)}")
 
-    async def _create_entry(self, data: ParsedData, trace_id: str = None) -> Dict:
+    async def _create_entry(self, data: ParsedData) -> Dict:
         """Create a new entry from parsed data"""
         try:
             # Find category by name
@@ -854,14 +787,13 @@ class NLPServiceV2:
     ) -> str:
         """Call LLM to generate a user-friendly response"""
         try:
-            response, generation_id = await self.langfuse.track_response_llm_call(
+            response, generation_id = await self.langfuse.track_llm_call(
                 name="response_generation",
                 model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
                 trace_id=trace_id,
                 parent_id=parent_id,
                 temperature=0.7,  # Slightly higher temperature for more natural responses
-                response_type="user_friendly",
             )
             return response.choices[0].message.content.strip()
         except Exception as e:

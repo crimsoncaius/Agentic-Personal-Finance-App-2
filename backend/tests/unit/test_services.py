@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from models.schemas import CategoryQueryParams, EntryQueryParams
+from models.schemas import CategoryQueryParams, EntryQueryParams, EntryUpdate
 from services.category_service import CategoryService
 from services.entry_service import EntryService
 from database.connection import db_connection
@@ -224,6 +224,173 @@ class TestEntryService:
                 db_connection.client.table("entry").delete().eq(
                     "id", result.id
                 ).execute()
+
+    @pytest.mark.asyncio
+    async def test_update_entry_success(self, test_data_setup):
+        """Test successful entry update with real database"""
+        # Create a test entry first
+        test_entry = await EntryService.create_entry(
+            amount=Decimal("20.00"),
+            direction="expense",
+            entry_date=date(2025, 1, 15),
+            description="Original description",
+            category_id=test_data_setup["category"]["id"],
+        )
+
+        try:
+            # Update the entry
+            update_data = EntryUpdate(
+                amount=Decimal("25.50"),
+                description="Updated description",
+            )
+
+            updated_entry = await EntryService.update_entry(test_entry.id, update_data)
+
+            assert updated_entry is not None
+            assert updated_entry.id == test_entry.id
+            assert updated_entry.amount == Decimal("25.50")
+            assert updated_entry.description == "Updated description"
+            assert updated_entry.direction == "expense"  # Should remain unchanged
+            assert updated_entry.entry_date == date(
+                2025, 1, 15
+            )  # Should remain unchanged
+
+        finally:
+            # Clean up
+            db_connection.client.table("entry").delete().eq(
+                "id", test_entry.id
+            ).execute()
+
+    @pytest.mark.asyncio
+    async def test_update_entry_partial_update(self, test_data_setup):
+        """Test partial entry update with only some fields"""
+        # Create a test entry first
+        test_entry = await EntryService.create_entry(
+            amount=Decimal("30.00"),
+            direction="income",
+            entry_date=date(2025, 1, 10),
+            description="Original income description",
+            category_id=test_data_setup["category"]["id"],
+        )
+
+        try:
+            # Update only the amount
+            update_data = EntryUpdate(amount=Decimal("35.75"))
+
+            updated_entry = await EntryService.update_entry(test_entry.id, update_data)
+
+            assert updated_entry is not None
+            assert updated_entry.amount == Decimal("35.75")
+            assert (
+                updated_entry.description == "Original income description"
+            )  # Unchanged
+            assert updated_entry.direction == "income"  # Unchanged
+            assert updated_entry.entry_date == date(2025, 1, 10)  # Unchanged
+
+        finally:
+            # Clean up
+            db_connection.client.table("entry").delete().eq(
+                "id", test_entry.id
+            ).execute()
+
+    @pytest.mark.asyncio
+    async def test_update_entry_not_found(self, test_data_setup):
+        """Test entry update when entry doesn't exist"""
+        fake_id = uuid4()
+        update_data = EntryUpdate(amount=Decimal("10.00"))
+
+        result = await EntryService.update_entry(fake_id, update_data)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_update_entry_validation(self, test_data_setup):
+        """Test entry update validation with real service"""
+        # Create a test entry first
+        test_entry = await EntryService.create_entry(
+            amount=Decimal("20.00"),
+            direction="expense",
+            entry_date=date(2025, 1, 15),
+            description="Test entry",
+            category_id=test_data_setup["category"]["id"],
+        )
+
+        try:
+            # Test with invalid amount
+            with pytest.raises(ValueError):
+                update_data = EntryUpdate(amount=Decimal("-10.00"))
+                await EntryService.update_entry(test_entry.id, update_data)
+
+            # Test with zero amount
+            with pytest.raises(ValueError):
+                update_data = EntryUpdate(amount=Decimal("0.00"))
+                await EntryService.update_entry(test_entry.id, update_data)
+
+        finally:
+            # Clean up
+            db_connection.client.table("entry").delete().eq(
+                "id", test_entry.id
+            ).execute()
+
+    @pytest.mark.asyncio
+    async def test_update_entry_empty_update(self, test_data_setup):
+        """Test entry update with no fields provided"""
+        # Create a test entry first
+        test_entry = await EntryService.create_entry(
+            amount=Decimal("20.00"),
+            direction="expense",
+            entry_date=date(2025, 1, 15),
+            description="Test entry",
+            category_id=test_data_setup["category"]["id"],
+        )
+
+        try:
+            # Update with no fields
+            update_data = EntryUpdate()
+
+            updated_entry = await EntryService.update_entry(test_entry.id, update_data)
+
+            # Should return the original entry unchanged
+            assert updated_entry is not None
+            assert updated_entry.id == test_entry.id
+            assert updated_entry.amount == Decimal("20.00")
+            assert updated_entry.description == "Test entry"
+
+        finally:
+            # Clean up
+            db_connection.client.table("entry").delete().eq(
+                "id", test_entry.id
+            ).execute()
+
+    @pytest.mark.asyncio
+    async def test_delete_entry_success(self, test_data_setup):
+        """Test successful entry deletion with real database"""
+        # Create a test entry first
+        test_entry = await EntryService.create_entry(
+            amount=Decimal("15.00"),
+            direction="expense",
+            entry_date=date(2025, 1, 15),
+            description="Entry to be deleted",
+            category_id=test_data_setup["category"]["id"],
+        )
+
+        # Delete the entry
+        deleted = await EntryService.delete_entry(test_entry.id)
+
+        assert deleted is True
+
+        # Verify the entry is actually deleted
+        retrieved_entry = await EntryService.get_entry_by_id(test_entry.id)
+        assert retrieved_entry is None
+
+    @pytest.mark.asyncio
+    async def test_delete_entry_not_found(self, test_data_setup):
+        """Test entry deletion when entry doesn't exist"""
+        fake_id = uuid4()
+
+        deleted = await EntryService.delete_entry(fake_id)
+
+        assert deleted is False
 
 
 class TestCategoryService:

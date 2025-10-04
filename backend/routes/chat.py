@@ -13,9 +13,15 @@ from models.schemas import (
     EntryResponse,
     CategoryResponse,
 )
-from services.nlp_service import NLPService
+from services.nlp_factory import create_nlp_service, get_nlp_service_info
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
+
+
+@router.get("/service-info")
+async def get_service_info():
+    """Get information about the current NLP service configuration."""
+    return get_nlp_service_info()
 
 
 @router.post("/", response_model=ChatResponse)
@@ -27,8 +33,8 @@ async def chat_query(request: ChatRequest):
         if not openai_api_key:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
 
-        # Initialize NLP service
-        nlp_service = NLPService(openai_api_key)
+        # Initialize NLP service using factory
+        nlp_service = create_nlp_service(openai_api_key)
 
         # Process the query
         result = await nlp_service.process_query(request.text)
@@ -72,6 +78,16 @@ async def chat_query(request: ChatRequest):
                 operation="write",
                 result=entry_response,
                 message=result.get("message", "Entry created successfully"),
+            )
+        elif result["operation"] == "unsure":
+            # For unsure operations, return the suggestions and message
+            return ChatResponse(
+                operation="unsure",
+                result=result.get("result", []),  # This contains the suggestions
+                message=result.get(
+                    "message",
+                    "I'm not sure what you'd like to do. Could you please clarify?",
+                ),
             )
         else:
             # For read operations, result is already a list of entry dictionaries

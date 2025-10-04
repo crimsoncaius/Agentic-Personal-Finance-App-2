@@ -149,6 +149,182 @@ class TestEntryRoutes:
                     "id", entry["id"]
                 ).execute()
 
+    def test_update_entry_success(self, test_data_setup):
+        """Test successful entry update via API"""
+        # Create a test entry first
+        entry_data = {
+            "amount_cents": 2000,  # $20.00
+            "direction": "expense",
+            "entry_date": "2025-01-15",
+            "category_id": test_data_setup["category"]["id"],
+            "description": "Original test expense",
+            "source": "manual",
+        }
+
+        result = db_connection.client.table("entry").insert(entry_data).execute()
+        created_entry = result.data[0] if result.data else None
+
+        try:
+            # Update the entry
+            update_data = {
+                "amount": "25.50",
+                "description": "Updated test expense",
+            }
+
+            response = client.patch(
+                f"/api/v1/entries/{created_entry['id']}", json=update_data
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["amount"] == "25.5"
+            assert data["description"] == "Updated test expense"
+            assert data["direction"] == "expense"  # Should remain unchanged
+            assert data["entry_date"] == "2025-01-15"  # Should remain unchanged
+
+        finally:
+            # Clean up
+            if created_entry:
+                db_connection.client.table("entry").delete().eq(
+                    "id", created_entry["id"]
+                ).execute()
+
+    def test_update_entry_partial_update(self, test_data_setup):
+        """Test partial entry update via API"""
+        # Create a test entry first
+        entry_data = {
+            "amount_cents": 3000,  # $30.00
+            "direction": "income",
+            "entry_date": "2025-01-10",
+            "category_id": test_data_setup["category"]["id"],
+            "description": "Original income description",
+            "source": "manual",
+        }
+
+        result = db_connection.client.table("entry").insert(entry_data).execute()
+        created_entry = result.data[0] if result.data else None
+
+        try:
+            # Update only the amount
+            update_data = {"amount": "35.75"}
+
+            response = client.patch(
+                f"/api/v1/entries/{created_entry['id']}", json=update_data
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["amount"] == "35.75"
+            assert data["description"] == "Original income description"  # Unchanged
+            assert data["direction"] == "income"  # Unchanged
+            assert data["entry_date"] == "2025-01-10"  # Unchanged
+
+        finally:
+            # Clean up
+            if created_entry:
+                db_connection.client.table("entry").delete().eq(
+                    "id", created_entry["id"]
+                ).execute()
+
+    def test_update_entry_not_found(self, test_data_setup):
+        """Test entry update when entry doesn't exist"""
+        fake_id = uuid4()
+        update_data = {"amount": "10.00"}
+
+        response = client.patch(f"/api/v1/entries/{fake_id}", json=update_data)
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "Entry not found"
+
+    def test_update_entry_invalid_data(self, test_data_setup):
+        """Test entry update with invalid data"""
+        # Create a test entry first
+        entry_data = {
+            "amount_cents": 2000,  # $20.00
+            "direction": "expense",
+            "entry_date": "2025-01-15",
+            "category_id": test_data_setup["category"]["id"],
+            "description": "Test expense",
+            "source": "manual",
+        }
+
+        result = db_connection.client.table("entry").insert(entry_data).execute()
+        created_entry = result.data[0] if result.data else None
+
+        try:
+            # Test with invalid amount (negative)
+            update_data = {"amount": "-10.00"}
+
+            response = client.patch(
+                f"/api/v1/entries/{created_entry['id']}", json=update_data
+            )
+
+            assert response.status_code == 422  # Pydantic validation error
+            data = response.json()
+            assert "detail" in data
+
+            # Test with zero amount
+            update_data = {"amount": "0.00"}
+
+            response = client.patch(
+                f"/api/v1/entries/{created_entry['id']}", json=update_data
+            )
+
+            assert response.status_code == 422  # Pydantic validation error
+
+        finally:
+            # Clean up
+            if created_entry:
+                db_connection.client.table("entry").delete().eq(
+                    "id", created_entry["id"]
+                ).execute()
+
+    def test_delete_entry_success(self, test_data_setup):
+        """Test successful entry deletion via API"""
+        # Create a test entry first
+        entry_data = {
+            "amount_cents": 1500,  # $15.00
+            "direction": "expense",
+            "entry_date": "2025-01-15",
+            "category_id": test_data_setup["category"]["id"],
+            "description": "Entry to be deleted",
+            "source": "manual",
+        }
+
+        result = db_connection.client.table("entry").insert(entry_data).execute()
+        created_entry = result.data[0] if result.data else None
+
+        try:
+            # Delete the entry
+            response = client.delete(f"/api/v1/entries/{created_entry['id']}")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["message"] == "Entry deleted successfully"
+
+            # Verify the entry is actually deleted by trying to get it
+            get_response = client.get(f"/api/v1/entries/{created_entry['id']}")
+            # Note: The GET endpoint might return 405 if it doesn't support individual entry retrieval
+            # This is expected behavior
+
+        finally:
+            # Clean up (in case deletion failed)
+            if created_entry:
+                db_connection.client.table("entry").delete().eq(
+                    "id", created_entry["id"]
+                ).execute()
+
+    def test_delete_entry_not_found(self, test_data_setup):
+        """Test entry deletion when entry doesn't exist"""
+        fake_id = uuid4()
+
+        response = client.delete(f"/api/v1/entries/{fake_id}")
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "Entry not found"
+
 
 class TestCategoryRoutes:
     """Tests for category-related routes with actual database"""

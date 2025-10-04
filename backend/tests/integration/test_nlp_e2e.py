@@ -9,7 +9,7 @@ import time
 from datetime import date, datetime
 from decimal import Decimal
 
-from services.nlp_service import NLPService
+from services.nlp_service_v2 import NLPServiceV2
 from models.schemas import CategoryResponse, EntryDirection
 from database.connection import db_connection
 
@@ -21,7 +21,7 @@ pytestmark = [
 ]
 
 
-class TestNLPIntegrationReal:
+class TestNLPIntegrationV2Real:
     """Real integration tests for NLP service with actual database and OpenAI API"""
 
     @pytest.fixture
@@ -33,7 +33,7 @@ class TestNLPIntegrationReal:
             pytest.skip("OPENAI_API_KEY not set - skipping real integration tests")
 
         try:
-            service = NLPService(openai_key)
+            service = NLPServiceV2(openai_key)
             return service
         except Exception as e:
             pytest.skip(f"OpenAI client initialization failed: {e}")

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     langfuse_secret_key: Optional[str] = None
     langfuse_host: str = "https://cloud.langfuse.com"
 
+    # NLP Service Configuration
+    nlp_service_version: str = "v2"
+
     # Application Settings
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
     debug: bool = False
@@ -34,7 +37,9 @@ class Settings(BaseSettings):
     api_version: str = "1.0.0"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -58,6 +63,16 @@ class Settings(BaseSettings):
     def is_testing(self) -> bool:
         """Check if running in testing mode."""
         return self.environment.lower() in ("testing", "test")
+
+    def validate_nlp_service_version(self) -> bool:
+        """Validate that the NLP service version is supported."""
+        valid_versions = ["v1", "v2"]
+        if self.nlp_service_version not in valid_versions:
+            raise ValueError(
+                f"Invalid NLP service version: {self.nlp_service_version}. "
+                f"Valid versions are: {', '.join(valid_versions)}"
+            )
+        return True
 
 
 # Global settings instance
