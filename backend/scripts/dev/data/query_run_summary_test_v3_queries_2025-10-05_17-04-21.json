@@ -1,0 +1,132 @@
+{
+  "session_id": "test_session_20251005_170411_9b670078",
+  "test_run_metadata": {
+    "queries_file": "c:\\Users\\Caius\\Desktop\\Agentic-Personal-Finance-App-2\\backend\\scripts\\dev\\input\\test_v3_queries.json",
+    "total_queries": 3,
+    "successful_queries": 3,
+    "failed_queries": 0,
+    "success_rate": 100.0,
+    "total_execution_time_ms": 9915.192,
+    "average_execution_time_ms": 3304.640666666666,
+    "operation_breakdown": {
+      "read|write|unsure": 1,
+      "read": 2
+    },
+    "start_time": "2025-10-05T17:04:11.492229",
+    "end_time": "2025-10-05T17:04:21.407421"
+  },
+  "results": [
+    {
+      "query_id": "v3_test_1",
+      "query": "What did I spend last Monday?",
+      "result": {
+        "operation": "read|write|unsure",
+        "result": [
+          {
+            "id": "ba916a63-2fce-4e6c-ab68-c5af369bb357",
+            "entry_date": "2025-10-09",
+            "amount_cents": 10000,
+            "direction": "expense",
+            "category_id": "280463c5-13c4-47f3-a6aa-db24738af1aa",
+            "description": "spend $100 on groceries next week"
+          },
+          {
+            "id": "c4a40099-7c8b-4af3-be0d-363e8116d835",
+            "entry_date": "2025-10-09",
+            "amount_cents": 10000,
+            "direction": "expense",
+            "category_id": "280463c5-13c4-47f3-a6aa-db24738af1aa",
+            "description": "spend $100 on groceries next week"
+          },
+          {
+            "id": "0a1b70d9-854f-4c92-a4d3-1b354482a4aa",
+            "entry_date": "2025-10-07",
+            "amount_cents": 4000,
+            "direction": "expense",
+            "category_id": "280463c5-13c4-47f3-a6aa-db24738af1aa",
+            "description": "spent $40 on dinner last Tuesday"
+          },
+          {
+            "id": "687afc38-1887-4ced-a2a8-1b5d78e8819b",
+            "entry_date": "2025-10-07",
+            "amount_cents": 4000,
+            "direction": "expense",
+            "category_id": "280463c5-13c4-47f3-a6aa-db24738af1aa",
+            "description": "spent $40 on dinner last Tuesday"
+          }
+        ],
+        "message": "You spent $40 on dinner last Tuesday, which was October 7, 2025. No expenses occurred specifically on last Monday, October 6, 2025."
+      },
+      "execution_time_ms": 5044.813999999999,
+      "success": true,
+      "error": null,
+      "timestamp": "2025-10-05T17:04:11.492299"
+    },
+    {
+      "query_id": "v3_test_2",
+      "query": "Show me my highest expense this week",
+      "result": {
+        "operation": "read",
+        "result": [
+          {
+            "id": "6c04cf15-2952-4ab1-9d05-c9b909e185e8",
+            "entry_date": "2025-10-05",
+            "amount_cents": 10000,
+            "direction": "expense",
+            "category_id": "280463c5-13c4-47f3-a6aa-db24738af1aa",
+            "description": "spend $100 on groceries next week"
+          }
+        ],
+        "message": "Your highest expense today is $100 on groceries. No other expenses are recorded for this week, so this is the top expense based on current data."
+      },
+      "execution_time_ms": 2259.6259999999997,
+      "success": true,
+      "error": null,
+      "timestamp": "2025-10-05T17:04:16.537536"
+    },
+    {
+      "query_id": "v3_test_3",
+      "query": "How much did I spend on groceries this month?",
+      "result": {
+        "operation": "read",
+        "result": [
+          {
+            "amount_cents": 5000
+          },
+          {
+            "amount_cents": 3000
+          },
+          {
+            "amount_cents": 5000
+          },
+          {
+            "amount_cents": 3000
+          },
+          {
+            "amount_cents": 3000
+          },
+          {
+            "amount_cents": 5000
+          },
+          {
+            "amount_cents": 3000
+          },
+          {
+            "amount_cents": 1500
+          },
+          {
+            "amount_cents": 120000
+          },
+          {
+            "amount_cents": 15000
+          }
+        ],
+        "message": "Based on the provided facts, the top expenses include amounts of 50,00, 30,00, and 15,00 cents, but the total spent on groceries this month isn't directly available. Please specify if you'd like a sum of all expenses in the 'Food & Dining' category or a detailed breakdown."
+      },
+      "execution_time_ms": 2609.482,
+      "success": true,
+      "error": null,
+      "timestamp": "2025-10-05T17:04:18.797568"
+    }
+  ]
+}

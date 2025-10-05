@@ -1,0 +1,44 @@
+{
+  "session_id": "test_session_20251005_235837_a4621014",
+  "test_run_metadata": {
+    "queries_file": "c:\\Users\\Caius\\Desktop\\Agentic-Personal-Finance-App-2\\backend\\scripts\\dev\\input\\test_v3_queries.json",
+    "total_queries": 3,
+    "successful_queries": 0,
+    "failed_queries": 3,
+    "success_rate": 0.0,
+    "total_execution_time_ms": 9984.819,
+    "average_execution_time_ms": 3327.8529999999996,
+    "operation_breakdown": {},
+    "start_time": "2025-10-05T23:58:37.182654",
+    "end_time": "2025-10-05T23:58:47.167473"
+  },
+  "results": [
+    {
+      "query_id": "v3_test_1",
+      "query": "What did I spend last Monday?",
+      "result": null,
+      "execution_time_ms": 3931.336,
+      "success": false,
+      "error": "'QuerySpec' object has no attribute 'from_table'",
+      "timestamp": "2025-10-05T23:58:37.182754"
+    },
+    {
+      "query_id": "v3_test_2",
+      "query": "Show me my highest expense this week",
+      "result": null,
+      "execution_time_ms": 3714.366,
+      "success": false,
+      "error": "'QuerySpec' object has no attribute 'from_table'",
+      "timestamp": "2025-10-05T23:58:41.114502"
+    },
+    {
+      "query_id": "v3_test_3",
+      "query": "How much did I spend on groceries this month?",
+      "result": null,
+      "execution_time_ms": 2337.857,
+      "success": false,
+      "error": "'QuerySpec' object has no attribute 'from_table'",
+      "timestamp": "2025-10-05T23:58:44.829373"
+    }
+  ]
+}

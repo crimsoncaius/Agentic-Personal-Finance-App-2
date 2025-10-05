@@ -27,7 +27,7 @@ try:
         ErrorDetail,
     )
     from services.prompt_manager import PromptManager
-    from services.langfuse_service_v2 import langfuse_service_v3 as langfuse_service
+    from services.langfuse_service_v2 import langfuse_service_v2 as langfuse_service
 except ImportError:
     # If running from project root, try backend.*
     from backend.database.connection import db_connection
@@ -42,7 +42,7 @@ except ImportError:
     )
     from backend.services.prompt_manager import PromptManager
     from backend.services.langfuse_service_v2 import (
-        langfuse_service_v3 as langfuse_service,
+        langfuse_service_v2 as langfuse_service,
     )
 
 

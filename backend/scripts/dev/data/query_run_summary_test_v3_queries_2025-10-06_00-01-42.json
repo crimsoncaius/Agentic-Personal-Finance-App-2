@@ -1,0 +1,61 @@
+{
+  "session_id": "test_session_20251006_000131_953e983c",
+  "test_run_metadata": {
+    "queries_file": "C:\\Users\\Caius\\Desktop\\Agentic-Personal-Finance-App-2\\backend\\scripts\\dev\\input\\test_v3_queries.json",
+    "total_queries": 3,
+    "successful_queries": 2,
+    "failed_queries": 1,
+    "success_rate": 66.66666666666666,
+    "total_execution_time_ms": 10796.521,
+    "average_execution_time_ms": 3598.840333333333,
+    "operation_breakdown": {
+      "read": 2
+    },
+    "start_time": "2025-10-06T00:01:31.780829",
+    "end_time": "2025-10-06T00:01:42.577350"
+  },
+  "results": [
+    {
+      "query_id": "v3_test_1",
+      "query": "What did I spend last Monday?",
+      "result": {
+        "operation": "read",
+        "result": [],
+        "message": "You did not record any expenses last Monday, October 6, 2025. If you believe there should be expenses, please add them or specify a different date."
+      },
+      "execution_time_ms": 5706.0779999999995,
+      "success": true,
+      "error": null,
+      "timestamp": "2025-10-06T00:01:31.780829"
+    },
+    {
+      "query_id": "v3_test_2",
+      "query": "Show me my highest expense this week",
+      "result": {
+        "operation": "read",
+        "result": [
+          {
+            "id": "ba916a63-2fce-4e6c-ab68-c5af369bb357",
+            "entry_date": "2025-10-09",
+            "amount_cents": 10000,
+            "description": "spend $100 on groceries next week"
+          }
+        ],
+        "message": "Your highest expense this week was $100 on October 9th for groceries. If you need more details or a different period, please specify."
+      },
+      "execution_time_ms": 3369.237,
+      "success": true,
+      "error": null,
+      "timestamp": "2025-10-06T00:01:37.486907"
+    },
+    {
+      "query_id": "v3_test_3",
+      "query": "How much did I spend on groceries this month?",
+      "result": null,
+      "execution_time_ms": 1721.206,
+      "success": false,
+      "error": "{'message': 'invalid input syntax for type uuid: \"Test Food & Dining (Expense) ba5e37d6\"', 'code': '22P02', 'hint': None, 'details': None}",
+      "timestamp": "2025-10-06T00:01:40.856144"
+    }
+  ]
+}

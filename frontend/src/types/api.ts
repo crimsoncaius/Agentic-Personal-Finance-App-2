@@ -32,7 +32,7 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
-  operation: "read" | "write" | "unsure";
+  mutate: boolean;
   result: EntryResponse | EntryResponse[] | string[];
   message: string;
 }

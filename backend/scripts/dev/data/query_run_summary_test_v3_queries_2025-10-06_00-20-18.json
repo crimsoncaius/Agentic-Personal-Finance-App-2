@@ -1,0 +1,96 @@
+{
+  "session_id": "test_session_20251006_002004_60cce5d3",
+  "test_run_metadata": {
+    "queries_file": "C:\\Users\\Caius\\Desktop\\Agentic-Personal-Finance-App-2\\backend\\scripts\\dev\\input\\test_v3_queries.json",
+    "total_queries": 3,
+    "successful_queries": 3,
+    "failed_queries": 0,
+    "success_rate": 100.0,
+    "total_execution_time_ms": 13742.284,
+    "average_execution_time_ms": 4580.761333333334,
+    "operation_breakdown": {
+      "read": 3
+    },
+    "start_time": "2025-10-06T00:20:04.965181",
+    "end_time": "2025-10-06T00:20:18.707465"
+  },
+  "results": [
+    {
+      "query_id": "v3_test_1",
+      "query": "What did I spend last Monday?",
+      "result": {
+        "operation": "read",
+        "result": [],
+        "message": "I reached the data access limit for this request. Please refine your filters or ask for top results."
+      },
+      "execution_time_ms": 6432.2210000000005,
+      "success": true,
+      "error": null,
+      "timestamp": "2025-10-06T00:20:04.965181"
+    },
+    {
+      "query_id": "v3_test_2",
+      "query": "Show me my highest expense this week",
+      "result": {
+        "operation": "read",
+        "result": [
+          {
+            "id": "ee1e2c0c-963f-4c17-8968-303d6316a78e",
+            "entry_date": "2025-10-01",
+            "amount_cents": 120000,
+            "description": "Bought a new laptop"
+          }
+        ],
+        "message": "Your highest expense this week was a $1,200 purchase for a new laptop on October 1st. No other expenses in the specified period exceeded this amount."
+      },
+      "execution_time_ms": 4702.677000000001,
+      "success": true,
+      "error": null,
+      "timestamp": "2025-10-06T00:20:11.397402"
+    },
+    {
+      "query_id": "v3_test_3",
+      "query": "How much did I spend on groceries this month?",
+      "result": {
+        "operation": "read",
+        "result": [
+          {
+            "amount_cents": 5000
+          },
+          {
+            "amount_cents": 3000
+          },
+          {
+            "amount_cents": 5000
+          },
+          {
+            "amount_cents": 3000
+          },
+          {
+            "amount_cents": 3000
+          },
+          {
+            "amount_cents": 5000
+          },
+          {
+            "amount_cents": 3000
+          },
+          {
+            "amount_cents": 1500
+          },
+          {
+            "amount_cents": 120000
+          },
+          {
+            "amount_cents": 15000
+          }
+        ],
+        "message": "You spent a total of 49,500 cents ($495) on groceries this month, based on the recent expense entries in the 'Food & Dining (Expense)' category for October 2025."
+      },
+      "execution_time_ms": 2607.386,
+      "success": true,
+      "error": null,
+      "timestamp": "2025-10-06T00:20:16.100079"
+    }
+  ]
+}

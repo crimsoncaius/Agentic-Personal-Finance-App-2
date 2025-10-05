@@ -17,7 +17,7 @@ except ImportError:
     from backend.config.settings import settings
 
 
-class LangfuseServiceV2:
+class LangfuseServiceV1:
     """Simplified service for managing Langfuse observability and tracing."""
 
     def __init__(self, openai_api_key: str = None):
@@ -319,4 +319,4 @@ class LangfuseServiceV2:
 
 
 # Global Langfuse service instance
-langfuse_service_v2 = LangfuseServiceV2()
+langfuse_service_v1 = LangfuseServiceV1()

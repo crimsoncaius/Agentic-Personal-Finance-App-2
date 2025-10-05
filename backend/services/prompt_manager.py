@@ -36,6 +36,13 @@ class PromptManager:
         self.read_response_template = self.env.get_template("read_response.j2")
         self.write_response_template = self.env.get_template("write_response.j2")
         self.unsure_response_template = self.env.get_template("unsure_response.j2")
+        # v3 unified prompt template (optional)
+        try:
+            self.unified_prompt_v3_template = self.env.get_template(
+                "unified_prompt_v3.j2"
+            )
+        except Exception:
+            self.unified_prompt_v3_template = None
 
     def _get_date_examples(self, current_date: date) -> List[Dict[str, Any]]:
         """Generate date examples for relative date parsing"""
@@ -206,4 +213,40 @@ class PromptManager:
             current_date=current_date.isoformat(),
             date_examples=date_examples,
             categories=categories or [],
+        )
+
+    def generate_unified_prompt_v3(
+        self,
+        user_input: str,
+        facts: Dict[str, Any] = None,
+        current_date: date = None,
+        categories: List[str] = None,
+    ) -> str:
+        """Generate unified v3 prompt (planning + finalization with single tool).
+
+        Falls back to unified v2 template if v3 is not available.
+        """
+        if current_date is None:
+            current_date = date.today()
+        if categories is None:
+            categories = []
+
+        if getattr(self, "unified_prompt_v3_template", None):
+            return self.unified_prompt_v3_template.render(
+                user_input=user_input,
+                current_date=current_date.isoformat(),
+                facts=facts or {},
+                categories=categories,
+            )
+
+        # Fallback: reuse v2 template with simplified category list
+        fallback_categories = [
+            c if isinstance(c, str) else c.get("name") or c.get("id")
+            for c in categories
+        ]
+        return self.unified_template.render(
+            user_input=user_input,
+            current_date=current_date.isoformat(),
+            date_examples=self._get_date_examples(current_date),
+            categories=fallback_categories,
         )

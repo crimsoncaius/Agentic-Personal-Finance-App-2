@@ -1,12 +1,11 @@
 """
-Langfuse service V2 for NLP Service V2 observability and tracing.
-Dedicated to the V2 LangGraph workflow: unified parse → response generation nodes.
-This service is specifically designed for NLP Service V2 and should not be used by other versions.
+Langfuse service V3 for NLP Service V3 observability and tracing.
+Optimized for the multi-turn orchestration workflow with QuerySpec execution.
 """
 
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Tuple
 from contextlib import asynccontextmanager
 
 from langfuse import Langfuse
@@ -18,18 +17,8 @@ except ImportError:
     from backend.config.settings import settings
 
 
-class LangfuseServiceV2:
-    """
-    Langfuse service dedicated to NLP Service V2's LangGraph workflow.
-
-    This service provides observability and tracing specifically for:
-    - Unified parse operations (operation detection + data extraction)
-    - Response generation for read/write/unsure operations
-    - LangGraph workflow node execution
-    - Database operations within the V2 workflow
-
-    Do not use this service with other NLP service versions.
-    """
+class LangfuseServiceV3:
+    """Langfuse service optimized for NLP Service V3's multi-turn orchestration workflow."""
 
     def __init__(self, openai_api_key: str = None):
         """Initialize Langfuse service with configuration."""
@@ -133,11 +122,11 @@ class LangfuseServiceV2:
         trace_id: str = None,
         parent_id: str = None,
         temperature: float = 0.1,
-        operation_type: str = "unified_parse",
+        operation_type: str = "v3_plan",
     ) -> tuple:
         """
-        Track a unified LLM call for V2's parse node.
-        This handles both operation detection and data extraction in one call.
+        Track a unified LLM call for V3's planning and orchestration.
+        This handles the main planning loop with optional QuerySpec generation.
         """
         if not self.enabled:
             # Fallback to regular OpenAI call
@@ -154,7 +143,7 @@ class LangfuseServiceV2:
             metadata={
                 "temperature": temperature,
                 "operation_type": operation_type,
-                "workflow_version": "v2",
+                "workflow_version": "v3",
             },
         ) as generation:
             start_time = time.time()
@@ -192,7 +181,7 @@ class LangfuseServiceV2:
                         "model": model,
                         "temperature": temperature,
                         "operation_type": operation_type,
-                        "workflow_version": "v2",
+                        "workflow_version": "v3",
                         "response_id": response.id,
                         "finish_reason": (
                             response.choices[0].finish_reason
@@ -214,7 +203,7 @@ class LangfuseServiceV2:
                         "model": model,
                         "temperature": temperature,
                         "operation_type": operation_type,
-                        "workflow_version": "v2",
+                        "workflow_version": "v3",
                     },
                 )
                 raise
@@ -226,12 +215,12 @@ class LangfuseServiceV2:
         messages: List[Dict],
         trace_id: str = None,
         parent_id: str = None,
-        temperature: float = 0.7,
+        temperature: float = 0.3,
         response_type: str = "user_friendly",
     ) -> tuple:
         """
-        Track LLM call for response generation in V2 workflow.
-        Higher temperature for more natural responses.
+        Track LLM call for response generation in V3 workflow.
+        Used for finalizing responses with accumulated facts.
         """
         if not self.enabled:
             # Fallback to regular OpenAI call
@@ -248,7 +237,7 @@ class LangfuseServiceV2:
             metadata={
                 "temperature": temperature,
                 "response_type": response_type,
-                "workflow_version": "v2",
+                "workflow_version": "v3",
             },
         ) as generation:
             start_time = time.time()
@@ -286,7 +275,7 @@ class LangfuseServiceV2:
                         "model": model,
                         "temperature": temperature,
                         "response_type": response_type,
-                        "workflow_version": "v2",
+                        "workflow_version": "v3",
                         "response_id": response.id,
                         "finish_reason": (
                             response.choices[0].finish_reason
@@ -308,7 +297,7 @@ class LangfuseServiceV2:
                         "model": model,
                         "temperature": temperature,
                         "response_type": response_type,
-                        "workflow_version": "v2",
+                        "workflow_version": "v3",
                     },
                 )
                 raise
@@ -323,7 +312,7 @@ class LangfuseServiceV2:
         result_count: int = None,
         duration: float = None,
     ):
-        """Track database operations with performance metrics."""
+        """Track database operations with performance metrics for V3 workflow."""
         if not self.enabled:
             return None
 
@@ -348,7 +337,7 @@ class LangfuseServiceV2:
             "duration": duration,
             "status": "success" if result_count is not None else "unknown",
             "timestamp": datetime.now().isoformat(),
-            "workflow_version": "v2",
+            "workflow_version": "v3",
         }
 
         with self.langfuse.start_as_current_span(
@@ -364,173 +353,205 @@ class LangfuseServiceV2:
                 "table": table,
                 "result_count": result_count,
                 "duration": duration,
-                "workflow_version": "v2",
+                "workflow_version": "v3",
             },
         ) as span:
             return span.id
 
-    def track_workflow_node_v2(
+    def track_planning_turn(
         self,
-        node_name: str,
+        turn_number: int,
         trace_id: str = None,
         parent_id: str = None,
-        input_data: Any = None,
-        output_data: Any = None,
+        action: str = None,
+        facts: Dict = None,
         duration: float = None,
         error: str = None,
-        operation_type: str = None,
     ):
-        """
-        Track LangGraph workflow node execution for V2.
-        Optimized for parse → response node structure.
-        """
+        """Track individual planning turns in the V3 orchestration loop."""
         if not self.enabled:
             return None
 
-        # Wrap provided output in a richer payload so the span preview is useful
-        workflow_output = {
-            "node_name": node_name,
-            "node_type": "workflow_v2",
-            "operation_type": operation_type,
-            "input_data": input_data,
-            "output_data": output_data,
+        turn_output = {
+            "turn_number": turn_number,
+            "action": action,
+            "facts_count": len(facts) if facts else 0,
             "duration": duration,
             "error": error,
             "status": "success" if error is None else "error",
             "timestamp": datetime.now().isoformat(),
-            "workflow_version": "v2",
+            "workflow_version": "v3",
         }
 
         with self.langfuse.start_as_current_span(
-            name=f"workflow_v2_{node_name}",
-            input=input_data,
+            name=f"planning_turn_{turn_number}",
+            input={"turn_number": turn_number, "action": action},
+            output=turn_output,
+            metadata={
+                "operation_type": "planning_turn",
+                "turn_number": turn_number,
+                "action": action,
+                "duration": duration,
+                "error": error,
+                "workflow_version": "v3",
+            },
+        ) as span:
+            return span.id
+
+    def track_query_spec_execution(
+        self,
+        trace_id: str = None,
+        parent_id: str = None,
+        query_spec: Dict = None,
+        execution_result: Dict = None,
+        duration: float = None,
+        error: str = None,
+    ):
+        """Track QuerySpec execution in V3 workflow."""
+        if not self.enabled:
+            return None
+
+        execution_output = {
+            "query_spec": query_spec,
+            "execution_result": execution_result,
+            "duration": duration,
+            "error": error,
+            "status": "success" if error is None else "error",
+            "timestamp": datetime.now().isoformat(),
+            "workflow_version": "v3",
+        }
+
+        with self.langfuse.start_as_current_span(
+            name="query_spec_execution",
+            input={"query_spec": query_spec},
+            output=execution_output,
+            metadata={
+                "operation_type": "query_spec_execution",
+                "duration": duration,
+                "error": error,
+                "workflow_version": "v3",
+            },
+        ) as span:
+            return span.id
+
+    def track_fact_accumulation(
+        self,
+        trace_id: str = None,
+        parent_id: str = None,
+        prior_facts: Dict = None,
+        new_data: List = None,
+        accumulated_facts: Dict = None,
+        duration: float = None,
+    ):
+        """Track fact accumulation across multiple turns in V3 workflow."""
+        if not self.enabled:
+            return None
+
+        accumulation_output = {
+            "prior_facts_count": len(prior_facts) if prior_facts else 0,
+            "new_data_count": len(new_data) if new_data else 0,
+            "accumulated_facts_count": (
+                len(accumulated_facts) if accumulated_facts else 0
+            ),
+            "duration": duration,
+            "timestamp": datetime.now().isoformat(),
+            "workflow_version": "v3",
+        }
+
+        with self.langfuse.start_as_current_span(
+            name="fact_accumulation",
+            input={
+                "prior_facts_count": len(prior_facts) if prior_facts else 0,
+                "new_data_count": len(new_data) if new_data else 0,
+            },
+            output=accumulation_output,
+            metadata={
+                "operation_type": "fact_accumulation",
+                "duration": duration,
+                "workflow_version": "v3",
+            },
+        ) as span:
+            return span.id
+
+    def track_multi_turn_workflow(
+        self,
+        trace_id: str = None,
+        total_turns: int = None,
+        total_fetches: int = None,
+        final_operation: str = None,
+        duration: float = None,
+        error: str = None,
+    ):
+        """Track overall multi-turn workflow performance for V3."""
+        if not self.enabled:
+            return None
+
+        workflow_output = {
+            "total_turns": total_turns,
+            "total_fetches": total_fetches,
+            "final_operation": final_operation,
+            "duration": duration,
+            "error": error,
+            "status": "success" if error is None else "error",
+            "timestamp": datetime.now().isoformat(),
+            "workflow_version": "v3",
+        }
+
+        with self.langfuse.start_as_current_span(
+            name="multi_turn_workflow",
+            input={
+                "total_turns": total_turns,
+                "total_fetches": total_fetches,
+                "final_operation": final_operation,
+            },
             output=workflow_output,
             metadata={
-                "node_type": "workflow_v2",
-                "node_name": node_name,
-                "operation_type": operation_type,
+                "operation_type": "multi_turn_workflow",
+                "total_turns": total_turns,
+                "total_fetches": total_fetches,
                 "duration": duration,
                 "error": error,
-                "workflow_version": "v2",
+                "workflow_version": "v3",
             },
         ) as span:
             return span.id
 
-    def track_performance_metrics_v2(
+    def track_performance_metrics_v3(
         self, operation: str, trace_id: str = None, metrics: Dict = None
     ):
-        """Track custom performance metrics for V2 workflow."""
+        """Track custom performance metrics for V3 workflow."""
         if not self.enabled:
             return None
 
-        # Add V2-specific metadata
-        v2_metrics = metrics or {}
-        v2_metrics["workflow_version"] = "v2"
+        # Add V3-specific metadata
+        v3_metrics = metrics or {}
+        v3_metrics["workflow_version"] = "v3"
 
         self.langfuse.create_score(
-            name=f"performance_v2_{operation}",
+            name=f"performance_v3_{operation}",
             trace_id=trace_id,
-            value=v2_metrics.get("score", 0),
-            metadata=v2_metrics,
+            value=v3_metrics.get("score", 0),
+            metadata=v3_metrics,
         )
 
-    def track_cost_metrics_v2(
+    def track_cost_metrics_v3(
         self, operation: str, trace_id: str = None, cost_data: Dict = None
     ):
-        """Track cost-related metrics for V2 workflow."""
+        """Track cost-related metrics for V3 workflow."""
         if not self.enabled:
             return None
 
-        # Add V2-specific metadata
-        v2_cost_data = cost_data or {}
-        v2_cost_data["workflow_version"] = "v2"
+        # Add V3-specific metadata
+        v3_cost_data = cost_data or {}
+        v3_cost_data["workflow_version"] = "v3"
 
         self.langfuse.create_score(
-            name=f"cost_v2_{operation}",
+            name=f"cost_v3_{operation}",
             trace_id=trace_id,
-            value=v2_cost_data.get("total_cost", 0),
-            metadata=v2_cost_data,
+            value=v3_cost_data.get("total_cost", 0),
+            metadata=v3_cost_data,
         )
 
-    def track_parse_operation(
-        self,
-        trace_id: str = None,
-        parent_id: str = None,
-        input_text: str = None,
-        parsed_data: Dict = None,
-        operation: str = None,
-        duration: float = None,
-        error: str = None,
-    ):
-        """Specialized tracking for V2's unified parse operation."""
-        if not self.enabled:
-            return None
 
-        parse_output = {
-            "operation": operation,
-            "parsed_data": parsed_data,
-            "input_text": input_text,
-            "duration": duration,
-            "error": error,
-            "status": "success" if error is None else "error",
-            "timestamp": datetime.now().isoformat(),
-            "workflow_version": "v2",
-        }
-
-        with self.langfuse.start_as_current_span(
-            name="unified_parse",
-            input={"text": input_text},
-            output=parse_output,
-            metadata={
-                "operation_type": "unified_parse",
-                "parsed_operation": operation,
-                "duration": duration,
-                "error": error,
-                "workflow_version": "v2",
-            },
-        ) as span:
-            return span.id
-
-    def track_response_operation(
-        self,
-        response_type: str,
-        trace_id: str = None,
-        parent_id: str = None,
-        input_data: Any = None,
-        response_message: str = None,
-        duration: float = None,
-        error: str = None,
-    ):
-        """Specialized tracking for V2's response generation operations."""
-        if not self.enabled:
-            return None
-
-        response_output = {
-            "response_type": response_type,
-            "response_message": response_message,
-            "input_data": input_data,
-            "duration": duration,
-            "error": error,
-            "status": "success" if error is None else "error",
-            "timestamp": datetime.now().isoformat(),
-            "workflow_version": "v2",
-        }
-
-        with self.langfuse.start_as_current_span(
-            name=f"response_{response_type}",
-            input=input_data,
-            output=response_output,
-            metadata={
-                "operation_type": "response_generation",
-                "response_type": response_type,
-                "duration": duration,
-                "error": error,
-                "workflow_version": "v2",
-            },
-        ) as span:
-            return span.id
-
-
-# Global Langfuse service instance dedicated to NLP Service V2
-# This service should only be used by nlp_service_v2.py
-langfuse_service_v2 = LangfuseServiceV2()
+# Global Langfuse service instance for V3
+langfuse_service_v3 = LangfuseServiceV3()
