@@ -46,4 +46,4 @@ print(nlp_config.has_langfuse)
 - `LANGFUSE_HOST` - Langfuse host URL
 - `CORS_ORIGINS` - Comma-separated CORS origins
 - `DEBUG` - Enable debug mode
-- `ENVIRONMENT` - Environment name (development/production/testing)
+- `ENVIRONMENT` - Environment name (development/production)

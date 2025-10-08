@@ -44,3 +44,5 @@ htmlcov/
 
 # Cursor IDE
 .cursor/
+
+secret.txt

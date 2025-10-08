@@ -10,10 +10,18 @@ import os
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # Database Configuration
-    supabase_url: str
-    supabase_key: str
-    supabase_service_role_key: str
+    # Environment Configuration
+    environment: str = "development"
+
+    # Production Database Configuration
+    supabase_url_prod: str
+    supabase_key_prod: str
+    supabase_service_role_key_prod: str
+
+    # Development Database Configuration
+    supabase_url_dev: str
+    supabase_key_dev: str
+    supabase_service_role_key_dev: str
 
     # LLM Configuration
     openai_api_key: str
@@ -29,7 +37,6 @@ class Settings(BaseSettings):
     # Application Settings
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
     debug: bool = False
-    environment: str = "development"
 
     # API Settings
     api_title: str = "Expense Tracker MVP"
@@ -60,9 +67,25 @@ class Settings(BaseSettings):
         return self.environment.lower() in ("production", "prod")
 
     @property
-    def is_testing(self) -> bool:
-        """Check if running in testing mode."""
-        return self.environment.lower() in ("testing", "test")
+    def supabase_url(self) -> str:
+        """Get the appropriate Supabase URL based on environment."""
+        if self.is_production:
+            return self.supabase_url_prod
+        return self.supabase_url_dev
+
+    @property
+    def supabase_key(self) -> str:
+        """Get the appropriate Supabase key based on environment."""
+        if self.is_production:
+            return self.supabase_key_prod
+        return self.supabase_key_dev
+
+    @property
+    def supabase_service_role_key(self) -> str:
+        """Get the appropriate Supabase service role key based on environment."""
+        if self.is_production:
+            return self.supabase_service_role_key_prod
+        return self.supabase_service_role_key_dev
 
     def validate_nlp_service_version(self) -> bool:
         """Validate that the NLP service version is supported."""
