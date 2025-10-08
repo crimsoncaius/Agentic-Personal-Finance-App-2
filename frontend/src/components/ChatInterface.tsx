@@ -60,15 +60,18 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
         id: (Date.now() + 2).toString(),
         type: "assistant",
         content: response.message,
-        entries: Array.isArray(response.result)
-          ? response.result
-          : [response.result],
+        entries:
+          response.result &&
+          Array.isArray(response.result) &&
+          response.result.length > 0
+            ? response.result
+            : undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Trigger refresh if data was mutated
-      if (response.mutate && response.result && onEntryCreated) {
+      // Trigger refresh if data was mutated (write operation creates an entry)
+      if (response.operation === "write" && response.result && onEntryCreated) {
         onEntryCreated();
       }
     } catch (error) {
@@ -97,8 +100,22 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
     }
   };
 
-  const formatAmount = (amount: number | string, direction: string) => {
+  const formatAmount = (
+    amount: number | string | undefined,
+    direction: string
+  ) => {
+    // Handle undefined, null, or invalid amounts
+    if (amount === undefined || amount === null || amount === "") {
+      return direction === "expense" ? "-$0.00" : "+$0.00";
+    }
+
     const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+
+    // Handle NaN case
+    if (isNaN(numAmount)) {
+      return direction === "expense" ? "-$0.00" : "+$0.00";
+    }
+
     const sign = direction === "expense" ? "-" : "+";
     return `${sign}$${numAmount.toFixed(2)}`;
   };

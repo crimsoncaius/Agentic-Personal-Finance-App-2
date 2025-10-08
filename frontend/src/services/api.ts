@@ -12,6 +12,21 @@ const API_BASE_URL = import.meta.env.PROD
   : "http://localhost:8000/api/v1";
 
 class ApiService {
+  private getAuthHeaders(): HeadersInit {
+    const session = localStorage.getItem("session");
+    if (session) {
+      try {
+        const { access_token } = JSON.parse(session);
+        return {
+          Authorization: `Bearer ${access_token}`,
+        };
+      } catch (error) {
+        console.error("Error parsing session:", error);
+      }
+    }
+    return {};
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -21,14 +36,26 @@ class ApiService {
     const response = await fetch(url, {
       headers: {
         "Content-Type": "application/json",
+        ...this.getAuthHeaders(),
         ...options.headers,
       },
       ...options,
     });
 
     if (!response.ok) {
+      // Handle 401 Unauthorized - token expired
+      if (response.status === 401 || response.status === 403) {
+        // Clear session and reload to show login
+        localStorage.removeItem("session");
+        localStorage.removeItem("user");
+        window.location.reload();
+        throw new Error("Session expired. Please log in again.");
+      }
+
       const errorData: ErrorResponse = await response.json();
-      throw new Error(errorData.error.message || "API request failed");
+      throw new Error(
+        errorData.error?.message || errorData.detail || "API request failed"
+      );
     }
 
     return response.json();

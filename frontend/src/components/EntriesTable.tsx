@@ -98,9 +98,13 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
   };
 
   const checkIfTodayPage = (entries: EntryResponse[]) => {
-    const today = new Date().toISOString().split("T")[0];
+    // Use local date instead of UTC to match user's timezone
+    const today = new Date();
+    const todayLocal = `${today.getFullYear()}-${String(
+      today.getMonth() + 1
+    ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     const hasTodayEntry = entries.some((entry) =>
-      entry.entry_date.startsWith(today)
+      entry.entry_date.startsWith(todayLocal)
     );
     setIsTodayPage(hasTodayEntry);
   };
@@ -128,11 +132,15 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
 
   const findTodayPage = async () => {
     try {
-      const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+      // Use local date instead of UTC to match user's timezone
+      const today = new Date();
+      const todayLocal = `${today.getFullYear()}-${String(
+        today.getMonth() + 1
+      ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       let page = 1;
       let found = false;
 
-      console.log("Searching for today's entries:", today);
+      console.log("Searching for today's entries:", todayLocal);
 
       // Search through pages to find today's entries
       while (page <= totalPages && !found) {
@@ -146,7 +154,7 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
 
         // Check if any entry is from today
         const hasTodayEntry = response.items.some((entry) =>
-          entry.entry_date.startsWith(today)
+          entry.entry_date.startsWith(todayLocal)
         );
 
         if (hasTodayEntry) {
@@ -228,7 +236,14 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
                 onClick={async () => {
                   try {
                     setTodayLoading(true);
-                    const today = new Date().toISOString().split("T")[0];
+                    // Use local date instead of UTC to match user's timezone
+                    const today = new Date();
+                    const todayLocal = `${today.getFullYear()}-${String(
+                      today.getMonth() + 1
+                    ).padStart(2, "0")}-${String(today.getDate()).padStart(
+                      2,
+                      "0"
+                    )}`;
                     let page = 1;
                     let found = false;
 
@@ -242,7 +257,7 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
 
                       // Check if any entry is from today
                       const hasTodayEntry = response.items.some((entry) =>
-                        entry.entry_date.startsWith(today)
+                        entry.entry_date.startsWith(todayLocal)
                       );
 
                       if (hasTodayEntry) {
@@ -331,9 +346,15 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
           <div className="scrollbar-thin">
             <div className="p-6 space-y-3">
               {entries.map((entry) => {
-                const isTodayEntry = entry.entry_date.startsWith(
-                  new Date().toISOString().split("T")[0]
-                );
+                // Use local date instead of UTC to match user's timezone
+                const today = new Date();
+                const todayLocal = `${today.getFullYear()}-${String(
+                  today.getMonth() + 1
+                ).padStart(2, "0")}-${String(today.getDate()).padStart(
+                  2,
+                  "0"
+                )}`;
+                const isTodayEntry = entry.entry_date.startsWith(todayLocal);
                 return (
                   <div
                     key={entry.id}

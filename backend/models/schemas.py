@@ -35,6 +35,67 @@ class CategoryKind(str, Enum):
     INCOME = "income"
 
 
+# Auth models
+class UserRegister(BaseModel):
+    """User registration request"""
+
+    email: str = Field(
+        ..., min_length=3, max_length=255, description="User email address"
+    )
+    password: str = Field(
+        ...,
+        min_length=8,
+        max_length=100,
+        description="User password (min 8 characters)",
+    )
+    name: Optional[str] = Field(None, max_length=255, description="User display name")
+
+
+class UserLogin(BaseModel):
+    """User login request"""
+
+    email: str = Field(..., description="User email address")
+    password: str = Field(..., description="User password")
+
+
+class SessionResponse(BaseModel):
+    """Session information response"""
+
+    access_token: str
+    refresh_token: str
+    expires_at: int
+
+
+class UserResponse(BaseModel):
+    """User information response"""
+
+    id: str
+    email: str
+    name: Optional[str] = None
+    created_at: str
+
+
+class AuthResponse(BaseModel):
+    """Authentication response (login/register)"""
+
+    user: UserResponse
+    session: Optional[SessionResponse] = None
+    message: str = "Success"
+
+
+class RefreshTokenRequest(BaseModel):
+    """Refresh token request"""
+
+    refresh_token: str = Field(..., description="Refresh token")
+
+
+class VerifyTokenResponse(BaseModel):
+    """Token verification response"""
+
+    user: UserResponse
+    email_confirmed: bool
+
+
 # Base models
 class CategoryBase(BaseModel):
     """Base category model"""

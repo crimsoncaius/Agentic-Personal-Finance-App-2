@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from config.settings import settings
 
 # Import routes
-from routes import categories, chat, entries
+from routes import auth, categories, chat, entries
 
 # Create FastAPI app
 app = FastAPI(
@@ -31,6 +31,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(entries.router)
 app.include_router(categories.router)
 app.include_router(chat.router)

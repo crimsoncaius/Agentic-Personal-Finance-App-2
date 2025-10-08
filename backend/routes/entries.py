@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from middleware.auth import get_current_user_id
 from models.schemas import (
     EntryCreateStructured,
     EntryListResponse,
@@ -25,7 +26,9 @@ router = APIRouter(prefix="/api/v1/entries", tags=["entries"])
 
 
 @router.post("/", response_model=EntryResponse, status_code=201)
-async def create_entry_structured(entry: EntryCreateStructured):
+async def create_entry_structured(
+    entry: EntryCreateStructured, user_id: UUID = Depends(get_current_user_id)
+):
     """Create a new entry with structured data"""
     try:
         # Validate category exists and matches direction if provided
@@ -37,6 +40,7 @@ async def create_entry_structured(entry: EntryCreateStructured):
             amount=entry.amount,
             direction=entry.direction,
             entry_date=entry.entry_date,
+            user_id=user_id,
             category_id=entry.category_id,
             description=entry.description,
             source=entry.source,
@@ -77,6 +81,7 @@ async def get_entries(
     amount_max: Optional[Decimal] = Query(default=None),
     q: Optional[str] = Query(default=None),
     sort: str = Query(default="entry_date.desc"),
+    user_id: UUID = Depends(get_current_user_id),
 ):
     """Get entries with filtering and pagination"""
     try:
@@ -93,7 +98,7 @@ async def get_entries(
             sort=sort,
         )
 
-        result = await EntryService.get_entries(params)
+        result = await EntryService.get_entries(params, user_id)
         return EntryListResponse(**result)
 
     except ValueError as e:
@@ -103,10 +108,14 @@ async def get_entries(
 
 
 @router.patch("/{entry_id}", response_model=EntryResponse)
-async def update_entry(entry_id: UUID, entry_update: EntryUpdate):
+async def update_entry(
+    entry_id: UUID,
+    entry_update: EntryUpdate,
+    user_id: UUID = Depends(get_current_user_id),
+):
     """Update an existing entry with partial data"""
     try:
-        updated_entry = await EntryService.update_entry(entry_id, entry_update)
+        updated_entry = await EntryService.update_entry(entry_id, entry_update, user_id)
 
         if updated_entry is None:
             raise HTTPException(status_code=404, detail="Entry not found")
@@ -137,10 +146,10 @@ async def update_entry(entry_id: UUID, entry_update: EntryUpdate):
 
 
 @router.delete("/{entry_id}")
-async def delete_entry(entry_id: UUID):
+async def delete_entry(entry_id: UUID, user_id: UUID = Depends(get_current_user_id)):
     """Delete an entry by ID"""
     try:
-        deleted = await EntryService.delete_entry(entry_id)
+        deleted = await EntryService.delete_entry(entry_id, user_id)
 
         if not deleted:
             raise HTTPException(status_code=404, detail="Entry not found")

@@ -3,8 +3,10 @@ Chat/NLP routes for Expense Tracker MVP
 """
 
 import os
-from fastapi import APIRouter, HTTPException
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException
 
+from middleware.auth import get_current_user_id
 from models.schemas import (
     ChatRequest,
     ChatResponse,
@@ -25,7 +27,9 @@ async def get_service_info():
 
 
 @router.post("/", response_model=ChatResponse)
-async def chat_query(request: ChatRequest):
+async def chat_query(
+    request: ChatRequest, user_id: UUID = Depends(get_current_user_id)
+):
     """Handle natural language queries for both read and write operations"""
     try:
         # Get OpenAI API key from environment
@@ -36,8 +40,8 @@ async def chat_query(request: ChatRequest):
         # Initialize NLP service using factory
         nlp_service = create_nlp_service(openai_api_key)
 
-        # Process the query
-        result = await nlp_service.process_query(request.text)
+        # Process the query with user context
+        result = await nlp_service.process_query(request.text, user_id=str(user_id))
 
         # Check if result is an error
         if isinstance(result, ParseError):

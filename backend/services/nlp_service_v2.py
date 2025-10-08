@@ -75,6 +75,9 @@ class NLPServiceV2:
         self._categories_cache: Optional[List[CategoryResponse]] = None
         self.prompt_manager = PromptManager()
         self.nlp_config = nlp_config
+        self._current_user_id: Optional[str] = (
+            None  # Store current user_id for request context
+        )
 
     async def process_query(
         self, text: str, user_id: str = None, session_id: str = None
@@ -90,6 +93,9 @@ class NLPServiceV2:
         Returns:
             Dictionary with operation result or ParseError
         """
+        # Store user_id in instance for access in workflow nodes
+        self._current_user_id = user_id
+
         # Create main trace for the entire query processing
         async with self.langfuse.trace_operation(
             name="nlp_query_processing_v2",
@@ -243,6 +249,10 @@ class NLPServiceV2:
         """Unified parse node that handles both operation detection and data extraction"""
         trace_id = state.get("trace_id")
 
+        # Debug: Check if user_id is in state
+        print(f"DEBUG _parse_node: user_id in state = {state.get('user_id')}")
+        print(f"DEBUG _parse_node: state keys = {list(state.keys())}")
+
         # Track parse node execution
         async with self.langfuse.span_operation(
             name="parse_node", trace_id=trace_id, input_data={"text": state["text"]}
@@ -274,6 +284,9 @@ class NLPServiceV2:
                 )
                 content = response.choices[0].message.content.strip()
 
+                # Debug: Log the LLM response
+                print(f"DEBUG: LLM Response: {content[:200]}...")  # First 200 chars
+
                 try:
                     parsed_response = json.loads(content)
 
@@ -292,13 +305,20 @@ class NLPServiceV2:
                     state["operation"] = operation
                     state["data"] = data
                     state["message"] = message
+                    # Note: user_id should already be in state from initial invoke
 
                     # Process based on operation type
                     if operation == "read":
                         # Validate and execute read query
                         query_params = QueryParams(**data)
                         query_start = time.time()
-                        entries = await self._execute_read_query(query_params, trace_id)
+                        # Get user_id from instance (stored in process_query)
+                        current_user_id = self._current_user_id
+                        if not current_user_id:
+                            raise ValueError("user_id is required for read operations")
+                        entries = await self._execute_read_query(
+                            query_params, current_user_id, trace_id
+                        )
                         query_duration = time.time() - query_start
 
                         # Track database operation
@@ -330,7 +350,13 @@ class NLPServiceV2:
 
                         validated_data = ParsedData(**data)
                         entry_start = time.time()
-                        entry = await self._create_entry(validated_data, trace_id)
+                        # Get user_id from instance (stored in process_query)
+                        current_user_id = self._current_user_id
+                        if not current_user_id:
+                            raise ValueError("user_id is required for creating entries")
+                        entry = await self._create_entry(
+                            validated_data, current_user_id, trace_id
+                        )
                         entry_duration = time.time() - entry_start
 
                         # Track database operation
@@ -384,6 +410,11 @@ class NLPServiceV2:
 
                 except (json.JSONDecodeError, ValidationError, ValueError) as e:
                     duration = time.time() - start_time
+
+                    # Debug: Log the parsing error
+                    print(f"DEBUG: JSON Parse Error: {str(e)}")
+                    print(f"DEBUG: LLM returned: {content}")
+
                     self.langfuse.track_parse_operation(
                         trace_id=trace_id,
                         parent_id=span_id,
@@ -407,7 +438,7 @@ class NLPServiceV2:
 
                     state["error"] = ParseError(
                         code="parsing_failed",
-                        message="Failed to parse response from LLM",
+                        message=f"Failed to parse response from LLM: {str(e)}",
                         details=ErrorDetail(
                             suggestions=["Try rephrasing your request"]
                         ),
@@ -416,6 +447,14 @@ class NLPServiceV2:
 
             except Exception as e:
                 duration = time.time() - start_time
+
+                # Log the actual error for debugging
+                import traceback
+
+                print(f"ERROR in _parse_node: {str(e)}")
+                print(f"ERROR type: {type(e).__name__}")
+                print(f"Traceback: {traceback.format_exc()}")
+
                 self.langfuse.track_parse_operation(
                     trace_id=trace_id,
                     parent_id=span_id,
@@ -439,7 +478,7 @@ class NLPServiceV2:
 
                 state["error"] = ParseError(
                     code="parsing_failed",
-                    message="Failed to process query",
+                    message=f"Failed to process query: {str(e)}",
                     details=ErrorDetail(suggestions=["Try rephrasing your request"]),
                 )
                 return state
@@ -447,6 +486,10 @@ class NLPServiceV2:
     async def _read_response_node(self, state: Dict) -> Dict:
         """Generate user-friendly response for read operations"""
         trace_id = state.get("trace_id")
+
+        # Check if result exists (error might have occurred in parse node)
+        if "result" not in state:
+            return state
 
         # Track read response node execution
         async with self.langfuse.span_operation(
@@ -530,6 +573,10 @@ class NLPServiceV2:
         """Generate user-friendly response for write operations"""
         trace_id = state.get("trace_id")
 
+        # Check if result exists (error might have occurred in parse node)
+        if "result" not in state:
+            return state
+
         # Track write response node execution
         async with self.langfuse.span_operation(
             name="write_response_node",
@@ -609,6 +656,10 @@ class NLPServiceV2:
         """Generate user-friendly response for unsure operations"""
         trace_id = state.get("trace_id")
 
+        # Check if result exists (error might have occurred in parse node)
+        if "result" not in state:
+            state["result"] = []  # Set empty suggestions if none exist
+
         # Track unsure response node execution
         async with self.langfuse.span_operation(
             name="unsure_response_node",
@@ -652,12 +703,8 @@ class NLPServiceV2:
                     operation_type="response_generation",
                 )
 
-                # Set up error for proper handling
-                state["error"] = ParseError(
-                    code="ambiguous",
-                    message="I'm not sure if you want to view existing entries or create a new one. Could you please clarify?",
-                    details=ErrorDetail(suggestions=state["result"]),
-                )
+                # Don't set error - "unsure" is a valid operation response
+                # The error handling in process_query will check for "ambiguous" code
                 return state
 
             except Exception as e:
@@ -688,11 +735,7 @@ class NLPServiceV2:
                     operation_type="response_generation",
                 )
 
-                state["error"] = ParseError(
-                    code="ambiguous",
-                    message="I'm not sure what you'd like to do. Could you please clarify?",
-                    details=ErrorDetail(suggestions=state["result"]),
-                )
+                # Don't set error - "unsure" is a valid operation response
                 return state
 
     async def _get_categories(self) -> List[CategoryResponse]:
@@ -720,7 +763,7 @@ class NLPServiceV2:
         return self._categories_cache
 
     async def _execute_read_query(
-        self, params: QueryParams, trace_id: str = None
+        self, params: QueryParams, user_id: str, trace_id: str = None
     ) -> List[Dict]:
         """Execute read query with given parameters"""
         try:
@@ -730,6 +773,9 @@ class NLPServiceV2:
                 category:category_id(id, name, type)
             """
             )
+
+            # Filter by user_id first (most important)
+            query = query.eq("user_id", str(user_id))
 
             # Apply filters
             if params.date_from:
@@ -786,7 +832,9 @@ class NLPServiceV2:
         except Exception as e:
             raise Exception(f"Failed to execute read query: {str(e)}")
 
-    async def _create_entry(self, data: ParsedData, trace_id: str = None) -> Dict:
+    async def _create_entry(
+        self, data: ParsedData, user_id: str, trace_id: str = None
+    ) -> Dict:
         """Create a new entry from parsed data"""
         try:
             # Find category by name
@@ -824,6 +872,7 @@ class NLPServiceV2:
                 "description": data.description,
                 "source": "nlp",
                 "parse_confidence": 0.8,  # Default confidence score
+                "user_id": str(user_id),
             }
 
             # Insert into database

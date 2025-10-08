@@ -28,9 +28,10 @@ except ImportError:
 class SampleDataGenerator:
     """Generate realistic sample data for testing and development"""
 
-    def __init__(self):
+    def __init__(self, user_id: str = None):
         self.categories = {}
         self.entries_data = []
+        self.user_id = user_id
 
     async def load_categories(self):
         """Load existing categories from database"""
@@ -245,23 +246,25 @@ class SampleDataGenerator:
                     # Add some randomness to dates (not all on same day)
                     entry_date = current_date + timedelta(days=random.randint(0, 2))
 
-                    entries.append(
-                        {
-                            "amount_cents": int(amount * 100),
-                            "direction": EntryDirection.EXPENSE.value,
-                            "entry_date": entry_date.isoformat(),
-                            "category_id": category_id,
-                            "description": description,
-                            "source": random.choices(
-                                [SourceType.MANUAL, SourceType.NLP], weights=[0.7, 0.3]
-                            )[0].value,
-                            "parse_confidence": (
-                                random.uniform(0.7, 0.95)
-                                if random.random() < 0.3
-                                else None
-                            ),
-                        }
-                    )
+                    entry_data = {
+                        "amount_cents": int(amount * 100),
+                        "direction": EntryDirection.EXPENSE.value,
+                        "entry_date": entry_date.isoformat(),
+                        "category_id": category_id,
+                        "description": description,
+                        "source": random.choices(
+                            [SourceType.MANUAL, SourceType.NLP], weights=[0.7, 0.3]
+                        )[0].value,
+                        "parse_confidence": (
+                            random.uniform(0.7, 0.95) if random.random() < 0.3 else None
+                        ),
+                    }
+
+                    # Add user_id if provided
+                    if self.user_id:
+                        entry_data["user_id"] = self.user_id
+
+                    entries.append(entry_data)
 
             current_date += timedelta(days=1)
 
@@ -385,23 +388,25 @@ class SampleDataGenerator:
                             days=random.randint(0, 28)
                         )
 
-                    entries.append(
-                        {
-                            "amount_cents": int(amount * 100),
-                            "direction": EntryDirection.INCOME.value,
-                            "entry_date": entry_date.isoformat(),
-                            "category_id": category_id,
-                            "description": description,
-                            "source": random.choices(
-                                [SourceType.MANUAL, SourceType.NLP], weights=[0.8, 0.2]
-                            )[0].value,
-                            "parse_confidence": (
-                                random.uniform(0.8, 0.98)
-                                if random.random() < 0.2
-                                else None
-                            ),
-                        }
-                    )
+                    entry_data = {
+                        "amount_cents": int(amount * 100),
+                        "direction": EntryDirection.INCOME.value,
+                        "entry_date": entry_date.isoformat(),
+                        "category_id": category_id,
+                        "description": description,
+                        "source": random.choices(
+                            [SourceType.MANUAL, SourceType.NLP], weights=[0.8, 0.2]
+                        )[0].value,
+                        "parse_confidence": (
+                            random.uniform(0.8, 0.98) if random.random() < 0.2 else None
+                        ),
+                    }
+
+                    # Add user_id if provided
+                    if self.user_id:
+                        entry_data["user_id"] = self.user_id
+
+                    entries.append(entry_data)
 
             # Move to next month
             if current_date.month == 12:
@@ -477,7 +482,17 @@ class SampleDataGenerator:
 
 async def main():
     """Main function to run sample data generation"""
-    generator = SampleDataGenerator()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Generate sample data for Expense Tracker"
+    )
+    parser.add_argument(
+        "--user-id", type=str, help="User ID to associate entries with (optional)"
+    )
+    args = parser.parse_args()
+
+    generator = SampleDataGenerator(user_id=args.user_id)
     await generator.generate_sample_data()
 
 

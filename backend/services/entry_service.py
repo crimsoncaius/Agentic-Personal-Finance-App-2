@@ -29,6 +29,7 @@ class EntryService:
         amount: Decimal,
         direction: Union[str, "EntryDirection"],
         entry_date: date,
+        user_id: UUID,
         category_id: Optional[UUID] = None,
         description: Optional[str] = None,
         source: Union[str, "SourceType"] = "manual",
@@ -54,6 +55,7 @@ class EntryService:
             "category_id": str(category_id) if category_id else None,
             "description": description,
             "source": source_value,
+            "user_id": str(user_id),
         }
 
         result = db_connection.client.table("entry").insert(entry_data).execute()
@@ -70,11 +72,14 @@ class EntryService:
         return Entry(**created_entry)
 
     @staticmethod
-    async def get_entries(params: EntryQueryParams) -> Dict[str, Any]:
+    async def get_entries(params: EntryQueryParams, user_id: UUID) -> Dict[str, Any]:
         """Get entries with filtering and pagination"""
         query = db_connection.client.table("entry").select(
             "*, category:category_id(id, name, type)"
         )
+
+        # Filter by user_id first (most important filter)
+        query = query.eq("user_id", str(user_id))
 
         # Apply filters
         if params.direction:
@@ -142,12 +147,13 @@ class EntryService:
         }
 
     @staticmethod
-    async def get_entry_by_id(entry_id: UUID) -> Optional[Entry]:
+    async def get_entry_by_id(entry_id: UUID, user_id: UUID) -> Optional[Entry]:
         """Get a single entry by ID"""
         result = (
             db_connection.client.table("entry")
             .select("*")
             .eq("id", str(entry_id))
+            .eq("user_id", str(user_id))
             .execute()
         )
 
@@ -161,10 +167,12 @@ class EntryService:
         return Entry(**entry_data)
 
     @staticmethod
-    async def update_entry(entry_id: UUID, update_data: EntryUpdate) -> Optional[Entry]:
+    async def update_entry(
+        entry_id: UUID, update_data: EntryUpdate, user_id: UUID
+    ) -> Optional[Entry]:
         """Update an existing entry"""
-        # Check if entry exists
-        existing_entry = await EntryService.get_entry_by_id(entry_id)
+        # Check if entry exists and belongs to user
+        existing_entry = await EntryService.get_entry_by_id(entry_id, user_id)
         if not existing_entry:
             return None
 
@@ -199,11 +207,12 @@ class EntryService:
         if not update_dict:
             return existing_entry
 
-        # Update the entry
+        # Update the entry (ensuring it belongs to the user)
         result = (
             db_connection.client.table("entry")
             .update(update_dict)
             .eq("id", str(entry_id))
+            .eq("user_id", str(user_id))
             .execute()
         )
 
@@ -217,18 +226,19 @@ class EntryService:
         return Entry(**updated_entry)
 
     @staticmethod
-    async def delete_entry(entry_id: UUID) -> bool:
+    async def delete_entry(entry_id: UUID, user_id: UUID) -> bool:
         """Delete an entry by ID"""
-        # Check if entry exists
-        existing_entry = await EntryService.get_entry_by_id(entry_id)
+        # Check if entry exists and belongs to user
+        existing_entry = await EntryService.get_entry_by_id(entry_id, user_id)
         if not existing_entry:
             return False
 
-        # Delete the entry
+        # Delete the entry (ensuring it belongs to the user)
         result = (
             db_connection.client.table("entry")
             .delete()
             .eq("id", str(entry_id))
+            .eq("user_id", str(user_id))
             .execute()
         )
 
