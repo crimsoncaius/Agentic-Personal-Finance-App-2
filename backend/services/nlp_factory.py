@@ -11,11 +11,12 @@ from models.schemas import ParseError
 if TYPE_CHECKING:
     from services.nlp_service_v1 import NLPServiceV1
     from services.nlp_service_v2 import NLPServiceV2
+    from services.nlp_service_v3 import NLPServiceV3
 
 
 def create_nlp_service(
     openai_api_key: str = None,
-) -> Union[NLPServiceV1, NLPServiceV2]:
+) -> Union[NLPServiceV1, NLPServiceV2, NLPServiceV3]:
     """
     Factory function to create the appropriate NLP service instance.
 
@@ -36,10 +37,14 @@ def create_nlp_service(
         from services.nlp_service_v1 import NLPService
 
         return NLPService(openai_api_key)
-    else:  # v2 (default)
+    elif settings.nlp_service_version == "v2":
         from services.nlp_service_v2 import NLPServiceV2
 
         return NLPServiceV2(openai_api_key)
+    else:  # v3 (default)
+        from services.nlp_service_v3 import NLPServiceV3
+
+        return NLPServiceV3(openai_api_key)
 
 
 def get_nlp_service_info() -> dict:
@@ -55,9 +60,15 @@ def get_nlp_service_info() -> dict:
             "class_name": "NLPServiceV1",
             "description": "Multi-node workflow with separate router, read, write, and unsure nodes",
         }
-    else:
+    elif settings.nlp_service_version == "v2":
         return {
             "version": "v2",
             "class_name": "NLPServiceV2",
             "description": "Unified workflow with parse node and response generation nodes",
+        }
+    else:
+        return {
+            "version": "v3",
+            "class_name": "NLPServiceV3",
+            "description": "LangGraph ReAct agent with fetch, create, and update tools",
         }

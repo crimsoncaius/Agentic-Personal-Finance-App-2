@@ -8,7 +8,7 @@ from decimal import Decimal
 
 # Enums matching database schema
 from enum import Enum
-from typing import List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -230,18 +230,40 @@ class EntryListResponse(BaseModel):
 
 
 # Chat/Query models
+class ChatMessage(BaseModel):
+    """Chat message model for conversation history"""
+
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ChatRequest(BaseModel):
     """Natural language query request model"""
 
     text: str = Field(..., min_length=1, max_length=1000)
+    chat_id: Optional[str] = Field(
+        None, description="Optional chat ID for conversation context"
+    )
 
 
 class ChatResponse(BaseModel):
     """Chat response model"""
 
     operation: Literal["read", "write", "unsure"]
-    result: Union[EntryResponse, List[EntryResponse], List[str]]
+    result: Union[EntryResponse, List[EntryResponse], List[str], List[Dict[str, Any]]]
     message: str = Field(..., description="User-friendly response message")
+    chat_id: str = Field(..., description="Chat ID for this conversation")
+
+
+class ConversationHistoryResponse(BaseModel):
+    """Response model for retrieving conversation history"""
+
+    chat_id: str
+    messages: List[ChatMessage]
+    count: int
 
 
 # LangGraph specific models

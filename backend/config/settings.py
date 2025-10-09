@@ -32,7 +32,15 @@ class Settings(BaseSettings):
     langfuse_host: str = "https://cloud.langfuse.com"
 
     # NLP Service Configuration
-    nlp_service_version: str = "v2"
+    nlp_service_version: str = "v3"
+
+    # Redis Configuration
+    redis_url: Optional[str] = None  # Railway auto-injects REDIS_URL in production
+    redis_password: Optional[str] = None
+    redis_db: int = 0
+    redis_max_connections: int = 10
+    conversation_ttl: int = 3600  # 1 hour
+    conversation_history_limit: int = 10  # Last 10 messages
 
     # Application Settings
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
@@ -89,7 +97,7 @@ class Settings(BaseSettings):
 
     def validate_nlp_service_version(self) -> bool:
         """Validate that the NLP service version is supported."""
-        valid_versions = ["v1", "v2"]
+        valid_versions = ["v1", "v2", "v3"]
         if self.nlp_service_version not in valid_versions:
             raise ValueError(
                 f"Invalid NLP service version: {self.nlp_service_version}. "

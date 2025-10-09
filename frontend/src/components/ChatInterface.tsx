@@ -17,6 +17,7 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [chatId, setChatId] = useState<string | undefined>();
 
   const examplePrompts = [
     "spent $20 on coffee",
@@ -49,8 +50,14 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
 
     try {
       const response: ChatResponse = await apiService.sendChatMessage(
-        input.trim()
+        input.trim(),
+        chatId
       );
+
+      // Store chat_id from response for conversation continuity
+      if (response.chat_id) {
+        setChatId(response.chat_id);
+      }
 
       // Remove thinking message
       setMessages((prev) => prev.filter((msg) => msg.type !== "thinking"));
@@ -109,23 +116,39 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
       return direction === "expense" ? "-$0.00" : "+$0.00";
     }
 
-    const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+    // Convert to number, handling both strings and numbers
+    const numAmount =
+      typeof amount === "string" ? parseFloat(amount) : Number(amount);
 
     // Handle NaN case
     if (isNaN(numAmount)) {
       return direction === "expense" ? "-$0.00" : "+$0.00";
     }
 
+    // Always use the absolute value and apply the correct sign based on direction
     const sign = direction === "expense" ? "-" : "+";
-    return `${sign}$${numAmount.toFixed(2)}`;
+    return `${sign}$${Math.abs(numAmount).toFixed(2)}`;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+  const formatDate = (dateString: string | Date) => {
+    try {
+      // Handle both string and Date objects
+      const date =
+        typeof dateString === "string" ? new Date(dateString) : dateString;
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Invalid Date";
+      }
+
+      const day = date.getDate().toString().padStart(2, "0");
+      const month = (date.getMonth() + 1).toString().padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error("Error formatting date:", error, "Input:", dateString);
+      return "Invalid Date";
+    }
   };
 
   return (
@@ -142,7 +165,10 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
           </div>
           {messages.length > 0 && (
             <button
-              onClick={() => setMessages([])}
+              onClick={() => {
+                setMessages([]);
+                setChatId(undefined);
+              }}
               className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors flex items-center space-x-1"
               title="Clear conversation"
             >
@@ -215,39 +241,53 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
               {/* Show entries if present */}
               {message.entries && message.entries.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  {message.entries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/30"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center space-x-2">
-                          <span
-                            className={`font-bold text-lg ${
-                              entry.direction === "expense"
-                                ? "text-red-400"
-                                : "text-green-400"
-                            }`}
-                          >
-                            {formatAmount(entry.amount, entry.direction)}
-                          </span>
-                          <span className="text-gray-400 text-xs">
-                            {formatDate(entry.entry_date)}
-                          </span>
+                  {message.entries.map((entry, index) => {
+                    // Check if this is a full EntryResponse object or raw data
+                    const isFullEntry =
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      "direction" in entry;
+
+                    if (!isFullEntry) {
+                      // This is raw data (like analytics results), don't try to display it
+                      return null;
+                    }
+
+                    return (
+                      <div
+                        key={entry.id || `entry-${index}`}
+                        className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/30"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center space-x-2">
+                            <span
+                              className={`font-bold text-lg ${
+                                entry.direction === "expense"
+                                  ? "text-red-400"
+                                  : "text-green-400"
+                              }`}
+                            >
+                              {formatAmount(entry.amount, entry.direction)}
+                            </span>
+                            <span className="text-gray-400 text-xs">
+                              {formatDate(entry.entry_date)}
+                            </span>
+                          </div>
                         </div>
+                        {entry.description && (
+                          <div className="text-gray-300 text-xs mt-2">
+                            {entry.description}
+                          </div>
+                        )}
+                        {entry.category && entry.category.name && (
+                          <div className="text-gray-400 text-xs mt-1">
+                            📁 {entry.category.name}
+                          </div>
+                        )}
                       </div>
-                      {entry.description && (
-                        <div className="text-gray-300 text-xs mt-2">
-                          {entry.description}
-                        </div>
-                      )}
-                      {entry.category && (
-                        <div className="text-gray-400 text-xs mt-1">
-                          📁 {entry.category.name}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

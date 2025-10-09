@@ -1,39 +1,43 @@
 """
-NLP Service V3 - Unified n-shot orchestrator with a single QuerySpec tool and 10-row cap.
-This implementation does not modify V1/V2; it's an additive alternative.
+NLP Service V3 - LangGraph ReAct Agent Implementation
+Uses prebuilt create_react_agent with tools for database operations
 """
 
 import json
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
-from uuid import UUID
-from pydantic import ValidationError
+import time
+from datetime import date
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
+from functools import partial
+
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.tools import StructuredTool
+
+# Try both import paths to handle running from different directories
+try:
+    from config.settings import settings
+    from services.langfuse_service_v3 import langfuse_service_v3 as langfuse_service
+    from services.redis_service import redis_service
+    from database.connection import db_connection
+    from services.tools import fetch_entries, create_entry, update_entry
+except ImportError:
+    from backend.config.settings import settings
+    from backend.services.langfuse_service_v3 import (
+        langfuse_service_v3 as langfuse_service,
+    )
+    from backend.services.redis_service import redis_service
+    from backend.database.connection import db_connection
+    from backend.services.tools import fetch_entries, create_entry, update_entry
 
 
 class NLPServiceV3:
-    """Unified orchestrator that plans, optionally fetches via QuerySpec, then finalizes reply."""
+    """LangGraph ReAct agent for natural language finance tracking."""
 
     def __init__(self, openai_api_key: str = None):
-        # Import configuration and services with flexible paths
-        try:
-            from config.settings import settings
-            from services.langfuse_service_v3 import (
-                langfuse_service_v3 as langfuse_service,
-            )
-            from services.prompt_manager import PromptManager
-            from database.connection import db_connection
-            from models.query_spec import QuerySpec
-        except ImportError:
-            from backend.config.settings import settings
-            from backend.services.langfuse_service_v3 import (
-                langfuse_service_v3 as langfuse_service,
-            )
-            from backend.services.prompt_manager import PromptManager
-            from backend.database.connection import db_connection
-            from backend.models.query_spec import QuerySpec
-
-        # Set up services
+        """Initialize the NLP service with OpenAI API key"""
+        # Set up API key
         import os
 
         if openai_api_key:
@@ -43,320 +47,302 @@ class NLPServiceV3:
 
         self.langfuse = langfuse_service
         self.db = db_connection
-        self.prompt_manager = PromptManager()
-        self.QuerySpec = QuerySpec
+        self.redis = redis_service
 
-        # Orchestration limits
-        self.MAX_TURNS = 3
-        self.MAX_FETCHES = 2
-        self.ROW_CAP = 10
+        # Use MemorySaver for checkpointing (per-conversation memory)
+        self.checkpointer = MemorySaver()
+
+        # Store current user_id for tool injection
+        self._current_user_id: Optional[str] = None
 
     async def process_query(
-        self, text: str, user_id: str = None, session_id: str = None
+        self,
+        text: str,
+        user_id: str = None,
+        session_id: str = None,
+        chat_id: str = None,
     ) -> Dict[str, Any]:
-        """Process a natural language query using unified prompt with optional fetch steps."""
+        """
+        Process a natural language query using LangGraph ReAct agent
+
+        Args:
+            text: Natural language input from user
+            user_id: User identifier for authentication
+            session_id: Session identifier for tracing
+            chat_id: Chat identifier for conversation context
+
+        Returns:
+            Dictionary with operation result and chat_id
+        """
+        # Store user_id for tool injection
+        self._current_user_id = user_id
+
+        # Generate chat_id if not provided
+        if not chat_id:
+            chat_id = str(uuid4())
+
+        # Create main trace for the entire query processing
         async with self.langfuse.trace_operation(
             name="nlp_query_processing_v3",
             user_id=user_id,
             session_id=session_id,
             input_data={"text": text},
-            tags=["nlp", "v3"],
+            tags=["nlp", "v3", "langgraph", "react_agent"],
         ) as trace_id:
-            facts: Dict[str, Any] = {}
-            fetches = 0
+            try:
+                start_time = time.time()
 
-            for _ in range(self.MAX_TURNS):
-                # Build and call unified main prompt
-                prompt = self._build_main_prompt(text, facts)
-                response, generation_id = await self.langfuse.track_unified_llm_call(
-                    name="v3_main",
-                    model="gpt-4.1-nano",
-                    messages=[{"role": "user", "content": prompt}],
-                    trace_id=trace_id,
-                    temperature=0.1,
-                    operation_type="v3_plan",
+                # Retrieve conversation history from Redis
+                conversation_history = await self.redis.get_conversation_history(
+                    chat_id
                 )
 
-                try:
-                    plan = json.loads(response.choices[0].message.content.strip())
-                except Exception:
-                    return {
-                        "operation": "unsure",
-                        "result": [],
-                        "message": "I couldn't interpret that. Please refine your request.",
+                # Create the agent
+                agent = self._create_agent(user_id)
+
+                # Build messages for agent input
+                messages = []
+
+                # Add conversation history
+                for msg in conversation_history:
+                    messages.append({"role": msg.role, "content": msg.content})
+
+                # Add current user message
+                messages.append({"role": "user", "content": text})
+
+                # Configure agent with thread_id for checkpointing
+                config = {
+                    "configurable": {
+                        "thread_id": chat_id,
                     }
+                }
 
-                action = plan.get("action")
+                # Invoke the agent
+                result_state = await agent.ainvoke(
+                    {"messages": messages}, config=config
+                )
 
-                # Direct reply path
-                if action == "reply":
-                    msg = plan.get("reply") or "Done."
-                    result_rows = self._extract_result_rows(facts)
-                    return {
-                        "operation": plan.get("operation", "read"),
-                        "result": result_rows,
-                        "message": msg,
-                    }
+                # Calculate total processing time
+                total_duration = time.time() - start_time
 
-                # Clarify path
-                if action == "clarify":
-                    question = plan.get("question") or "Could you clarify your request?"
-                    return {"operation": "unsure", "result": [], "message": question}
+                # Track performance metrics
+                self.langfuse.track_performance_metrics_v3(
+                    operation="query_processing_v3",
+                    trace_id=trace_id,
+                    metrics={
+                        "total_duration": total_duration,
+                        "text_length": len(text),
+                        "messages_count": len(result_state.get("messages", [])),
+                    },
+                )
 
-                # Get data path (fetch existing entries)
-                if action == "get":
-                    if fetches >= self.MAX_FETCHES:
-                        return {
-                            "operation": "read",
-                            "result": [],
-                            "message": "I reached the data access limit for this request. Please refine your filters or ask for top results.",
-                        }
+                # Parse agent output to extract response
+                response = self._parse_agent_output(result_state)
 
-                    try:
-                        # Normalize the query spec to convert category names to UUIDs
-                        normalized_spec_dict = self._normalize_query_spec_filters(
-                            plan["query_spec"]
-                        )
-                        spec = self.QuerySpec(
-                            **normalized_spec_dict
-                        )  # validates limit <= 10
-                    except (ValidationError, KeyError):
-                        return {
-                            "operation": "unsure",
-                            "result": [],
-                            "message": "I couldn't form a safe query. Try narrowing your request.",
-                        }
+                # Store messages in Redis for conversation continuity
+                await self.redis.store_message(chat_id, "user", text)
+                await self.redis.store_message(
+                    chat_id, "assistant", response["message"]
+                )
 
-                    rows, meta = await self._run_query_spec(spec, trace_id=trace_id)
-                    fetches += 1
+                # Add chat_id to response
+                response["chat_id"] = chat_id
 
-                    facts = self._summarize_facts(
-                        facts, rows, meta, plan.get("query_spec")
-                    )
+                return response
 
-                    # Give model one more turn with updated facts
-                    continue
+            except Exception as e:
+                # Track error metrics
+                self.langfuse.track_performance_metrics_v3(
+                    operation="query_processing_v3",
+                    trace_id=trace_id,
+                    metrics={
+                        "success": False,
+                        "error": str(e),
+                        "text_length": len(text),
+                    },
+                )
 
-                # Create new entry path
-                if action == "create":
-                    try:
-                        entry_data = plan["entry_data"]
-                        # Here you would typically validate and save the entry
-                        # For now, return success message
-                        return {
-                            "operation": "create",
-                            "result": [entry_data],
-                            "message": f"Created {entry_data.get('description', 'entry')} for ${entry_data.get('amount_cents', 0)/100:.2f}",
-                        }
-                    except (KeyError, ValueError) as e:
-                        return {
-                            "operation": "unsure",
-                            "result": [],
-                            "message": "I couldn't create that entry. Please check the details.",
-                        }
-
-                # Unknown action fallback
                 return {
                     "operation": "unsure",
                     "result": [],
-                    "message": "I'm not sure how to proceed. Please refine your request.",
+                    "message": f"I encountered an error processing your request: {str(e)}",
+                    "chat_id": chat_id,
                 }
 
-            # Finalization fallback after max turns
-            msg = await self._finalize_with_facts(text, facts, trace_id)
-            result_rows = self._extract_result_rows(facts)
-            return {
-                "operation": "read",
-                "result": result_rows,
-                "message": msg,
-            }
+    def _create_agent(self, user_id: str):
+        """Create the LangGraph ReAct agent with tools and configuration"""
+        # Initialize the language model
+        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.1)
 
-    def _build_main_prompt(self, user_text: str, facts: Dict[str, Any]) -> str:
+        # Get categories for system prompt
         categories = self._get_categories_sync()
-        # Pass only category names to the LLM, not UUIDs
         category_names = [cat.get("name") for cat in categories if cat.get("name")]
-        return self.prompt_manager.generate_unified_prompt_v3(
-            user_input=user_text,
-            facts=facts,
-            current_date=date.today(),
-            categories=category_names,
-        )
 
-    async def _run_query_spec(
-        self, spec, trace_id: str = None, parent_id: str = None
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """Translate QuerySpec to Supabase builder calls and execute (10-row cap enforced)."""
-        import time
+        # Build system prompt
+        system_prompt = self._build_system_prompt(category_names)
 
-        start_time = time.time()
+        # Create wrapper tools with user_id pre-filled using partial
+        # This ensures user_id is automatically passed to each tool call without the LLM needing to provide it
 
-        try:
-            # Start with base query
-            query = self.db.client.table(spec.from_)
+        def create_tool_with_user_id(tool_func, user_id_value):
+            """Create a new tool with user_id pre-filled"""
+            # Get the original tool's metadata
+            original_name = tool_func.name
+            original_description = tool_func.description
 
-            # Apply select (columns)
-            if spec.select:
-                query = query.select(",".join(spec.select))
+            # Create a partial function with user_id bound
+            func_with_user_id = partial(tool_func.func, user_id=user_id_value)
 
-            # Apply where conditions
-            if spec.where:
-                for column, condition in spec.where.items():
-                    if isinstance(condition, dict):
-                        # Handle range conditions like {"gte": "2024-01-01", "lte": "2024-12-31"}
-                        for op, value in condition.items():
-                            if op == ">=":
-                                query = query.gte(column, value)
-                            elif op == "<=":
-                                query = query.lte(column, value)
-                            elif op == ">":
-                                query = query.gt(column, value)
-                            elif op == "<":
-                                query = query.lt(column, value)
-                            elif op == "!=":
-                                query = query.neq(column, value)
-                            elif op == "=":
-                                query = query.eq(column, value)
-                    else:
-                        # Handle simple equality
-                        query = query.eq(column, condition)
+            # Create a new tool with the bound function
+            # Remove user_id from the schema since it's now pre-filled
+            from pydantic import create_model
 
-            # Apply group_by
-            if spec.group_by:
-                for group_col in spec.group_by:
-                    query = query.select(f"{group_col}")
+            # Get original args schema and remove user_id
+            original_schema = tool_func.args_schema
+            if original_schema:
+                # Create new schema without user_id field
+                field_definitions = {
+                    k: (v.annotation, v)
+                    for k, v in original_schema.model_fields.items()
+                    if k != "user_id"
+                }
+                new_schema = create_model(
+                    f"{original_schema.__name__}WithoutUserId", **field_definitions
+                )
+            else:
+                new_schema = None
 
-            # Apply order_by
-            if spec.order_by:
-                for order_spec in spec.order_by:
-                    for column, direction in order_spec.items():
-                        if direction.lower() == "desc":
-                            query = query.order(column, desc=True)
-                        else:
-                            query = query.order(column, desc=False)
-
-            # Apply limit (enforce 10-row cap)
-            limit = min(spec.limit or 10, self.ROW_CAP)
-            query = query.limit(limit)
-
-            # Apply offset
-            if spec.offset:
-                query = query.range(spec.offset, spec.offset + limit - 1)
-
-            # Execute query
-            result = query.execute()
-
-            duration = time.time() - start_time
-
-            # Track query execution
-            self.langfuse.track_query_spec_execution(
-                trace_id=trace_id,
-                parent_id=parent_id,
-                query_spec=spec.model_dump(),
-                execution_result={"rows": len(result.data), "data": result.data},
-                duration=duration,
+            return StructuredTool(
+                name=original_name,
+                description=original_description,
+                func=func_with_user_id,
+                args_schema=new_schema,
             )
 
-            return result.data or [], {
-                "returned": len(result.data or []),
-                "duration": duration,
-            }
+        tools_with_user_id = [
+            create_tool_with_user_id(fetch_entries, user_id),
+            create_tool_with_user_id(create_entry, user_id),
+            create_tool_with_user_id(update_entry, user_id),
+        ]
 
-        except Exception as e:
-            duration = time.time() - start_time
-            self.langfuse.track_query_spec_execution(
-                trace_id=trace_id,
-                parent_id=parent_id,
-                query_spec=spec.model_dump(),
-                execution_result=None,
-                duration=duration,
-                error=str(e),
-            )
-            raise
-
-    def _summarize_facts(
-        self,
-        prior: Dict[str, Any],
-        rows: List[Dict[str, Any]],
-        meta: Dict[str, Any],
-        query_spec: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        """Update facts structure to match new v3 format with queries array."""
-        # Initialize facts structure if empty
-        if not prior:
-            prior = {"queries": []}
-
-        new = dict(prior)
-
-        # Convert category IDs back to names in query_spec for better readability
-        readable_query_spec = self._convert_category_ids_to_names_in_spec(
-            query_spec or {}
+        # Create the ReAct agent
+        agent = create_react_agent(
+            model=model,
+            tools=tools_with_user_id,
+            prompt=system_prompt,
+            checkpointer=self.checkpointer,
         )
 
-        # Add new query result to queries array
-        query_result = {
-            "query_spec": readable_query_spec,
-            "results": rows[: self.ROW_CAP] if rows else [],
+        return agent
+
+    def _build_system_prompt(self, category_names: List[str]) -> str:
+        """Build system prompt for the agent"""
+        current_date = date.today().isoformat()
+
+        prompt = f"""You are a helpful financial assistant helping users track their income and expenses.
+
+**Current Date:** {current_date}
+
+**Available Categories:**
+{', '.join(category_names)}
+
+**Your Capabilities:**
+1. **Fetch Entries**: Use the fetch_entries tool to retrieve existing financial records
+   - You can filter by date range, category, direction (income/expense)
+   - Maximum 10 results per query
+   
+2. **Create Entry**: Use the create_entry tool to add new income or expense transactions
+   - Required: amount, direction, description, category, entry_date
+   - Direction must be "income" or "expense"
+   
+3. **Update Entry**: Use the update_entry tool to modify existing transactions
+   - Required: entry_id
+   - Optional: amount, direction, description, category, entry_date
+
+**Important Guidelines:**
+- Always use tools to fetch or create data - NEVER make up or hallucinate financial data
+- When users ask about their finances, use fetch_entries to get real data
+- For date queries like "last month" or "this week", calculate the appropriate date range
+- Be conversational and helpful in your responses
+- If you're unsure what the user wants, ask clarifying questions
+- After using tools, provide a natural language summary of the results
+
+**Date Handling:**
+- Today is {current_date}
+- Convert relative dates (e.g., "yesterday", "last week") to YYYY-MM-DD format
+- For date ranges, use the where clause with ">=" and "<=" operators
+
+**Response Format:**
+After using tools, provide a clear, conversational summary of what you found or did.
+Be specific with numbers and details from the tool results."""
+
+        return prompt
+
+    def _parse_agent_output(self, result_state: Dict) -> Dict[str, Any]:
+        """Parse agent output to match expected API response format"""
+        messages = result_state.get("messages", [])
+
+        # Extract operation type based on tool calls
+        operation = "unsure"
+        result_data = []
+        final_message = "I'm not sure what you'd like to do. Could you please clarify?"
+
+        # Analyze messages to determine operation and extract results
+        tool_calls_made = []
+
+        for msg in messages:
+            # Check for tool calls in AI messages
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                for tool_call in msg.tool_calls:
+                    tool_name = tool_call.get("name", "")
+                    tool_calls_made.append(tool_name)
+
+                    # Determine operation type from tool name
+                    if tool_name == "fetch_entries" and operation != "write":
+                        operation = "read"
+                    elif tool_name == "create_entry":
+                        operation = "write"
+                    elif tool_name == "update_entry":
+                        operation = "write"
+
+            # Check for tool messages (results from tool execution)
+            if hasattr(msg, "content") and msg.__class__.__name__ == "ToolMessage":
+                try:
+                    tool_result = json.loads(msg.content)
+                    if tool_result.get("success"):
+                        # Extract entries from fetch_entries
+                        if "entries" in tool_result:
+                            result_data = tool_result["entries"]
+                        # Extract entry from create_entry or update_entry
+                        elif "entry" in tool_result:
+                            result_data = [tool_result["entry"]]
+                except json.JSONDecodeError:
+                    pass
+
+            # Get the final AI message
+            if hasattr(msg, "content") and msg.__class__.__name__ == "AIMessage":
+                # Only use messages without tool calls as final response
+                if not (hasattr(msg, "tool_calls") and msg.tool_calls):
+                    if msg.content:
+                        final_message = msg.content
+
+        # If no clear operation was detected, check the final message
+        if operation == "unsure" and not tool_calls_made:
+            # Agent didn't use any tools, likely asking for clarification
+            final_message = (
+                messages[-1].content
+                if messages and hasattr(messages[-1], "content")
+                else final_message
+            )
+
+        return {
+            "operation": operation,
+            "result": result_data,
+            "message": final_message,
         }
 
-        if "queries" not in new:
-            new["queries"] = []
-
-        new["queries"].append(query_result)
-
-        # Keep track of total rows for reference
-        new["total_rows"] = prior.get("total_rows", 0) + meta.get("returned", 0)
-
-        return new
-
-    def _extract_result_rows(self, facts: Dict[str, Any]) -> List[Any]:
-        """Extract result rows from new v3 facts structure."""
-        if not facts or not facts.get("queries"):
-            return []
-
-        # Get the most recent query results
-        queries = facts.get("queries", [])
-        if not queries:
-            return []
-
-        # Return results from the latest query
-        latest_results = queries[-1].get("results", [])
-        if not isinstance(latest_results, list):
-            return []
-
-        return [self._coerce_json_value(row) for row in latest_results]
-
-    def _coerce_json_value(self, value):
-        if isinstance(value, (datetime, date)):
-            return value.isoformat()
-        if isinstance(value, Decimal):
-            return float(value)
-        if isinstance(value, UUID):
-            return str(value)
-        if isinstance(value, dict):
-            return {k: self._coerce_json_value(v) for k, v in value.items()}
-        return value
-
-    async def _finalize_with_facts(
-        self, user_text: str, facts: Dict[str, Any], trace_id: Optional[str]
-    ) -> str:
-        safe_facts = self._coerce_json_value(facts or {})
-        prompt = (
-            f"You are a finance assistant. Use ONLY these facts, do not invent data.\n"
-            f"User: {user_text}\nFacts: {json.dumps(safe_facts)}\n"
-            "Write a concise 1-3 sentence answer."
-        )
-        response, generation_id = await self.langfuse.track_response_llm_call(
-            name="v3_finalize",
-            model="gpt-4.1-nano",
-            messages=[{"role": "user", "content": prompt}],
-            trace_id=trace_id,
-            response_type="user_friendly",
-            temperature=0.3,
-        )
-        return response.choices[0].message.content.strip()
-
     def _get_categories_sync(self) -> List[Dict[str, Any]]:
-        """Get categories synchronously for prompt context."""
+        """Get categories synchronously for prompt context"""
         try:
             result = self.db.client.table("category").select("id, name, type").execute()
             return result.data or []
@@ -364,7 +350,7 @@ class NLPServiceV3:
             return []
 
     def _resolve_category_name_to_id(self, category_name: str) -> Optional[str]:
-        """Resolve category name to category_id."""
+        """Resolve category name to category_id"""
         try:
             result = (
                 self.db.client.table("category")
@@ -379,7 +365,7 @@ class NLPServiceV3:
         return None
 
     def _resolve_category_id_to_name(self, category_id: str) -> Optional[str]:
-        """Resolve category_id to category name."""
+        """Resolve category_id to category name"""
         try:
             result = (
                 self.db.client.table("category")
@@ -393,47 +379,10 @@ class NLPServiceV3:
             pass
         return None
 
-    def _convert_category_ids_to_names_in_spec(
-        self, query_spec: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Convert category IDs back to names in query spec for better readability in facts."""
-        if not query_spec:
-            return query_spec
-
-        # Create a copy to avoid modifying the original
-        readable_spec = query_spec.copy()
-
-        # Convert category_id in where clause if present
-        if "where" in readable_spec and isinstance(readable_spec["where"], dict):
-            where_clause = readable_spec["where"].copy()
-            if "category_id" in where_clause:
-                category_id = where_clause["category_id"]
-                if (
-                    isinstance(category_id, str) and len(category_id) == 36
-                ):  # UUID length check
-                    category_name = self._resolve_category_id_to_name(category_id)
-                    if category_name:
-                        # Replace category_id with category_name for readability
-                        del where_clause["category_id"]
-                        where_clause["category_name"] = category_name
-            readable_spec["where"] = where_clause
-
-        return readable_spec
-
-    def _normalize_category_filter_value(self, value: Any):
-        if value is None:
-            return None
-        if isinstance(value, str):
-            # Try to resolve category name to ID
-            category_id = self._resolve_category_name_to_id(value)
-            if category_id:
-                return category_id
-        return value
-
     def _normalize_query_spec_filters(
         self, spec_dict: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Normalize QuerySpec filters, converting category names to IDs where needed."""
+        """Normalize QuerySpec filters, converting category names to IDs where needed"""
         if "where" in spec_dict and isinstance(spec_dict["where"], dict):
             normalized_where = {}
             for key, value in spec_dict["where"].items():
@@ -448,12 +397,3 @@ class NLPServiceV3:
                     normalized_where[key] = value
             spec_dict["where"] = normalized_where
         return spec_dict
-
-    async def _run_query_spec_with_normalization(
-        self, spec, trace_id: str = None, parent_id: str = None
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """Run QuerySpec with category name normalization."""
-        # Normalize the spec to convert category names to IDs
-        normalized_spec_dict = self._normalize_query_spec_filters(spec.model_dump())
-        normalized_spec = self.QuerySpec(**normalized_spec_dict)
-        return await self._run_query_spec(normalized_spec, trace_id, parent_id)

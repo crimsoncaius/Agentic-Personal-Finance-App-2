@@ -200,19 +200,46 @@ class PromptManager:
         )
 
     def generate_unified_prompt(
-        self, user_input: str, current_date: date = None, categories: List[str] = None
+        self,
+        user_input: str,
+        current_date: date = None,
+        categories: List[str] = None,
+        conversation_history: List[Dict] = None,
     ) -> str:
-        """Generate unified prompt that combines parsing + operation detection"""
+        """Generate unified prompt that combines parsing + operation detection
+
+        Args:
+            user_input: Current user input
+            current_date: Current date for relative date parsing
+            categories: List of available categories
+            conversation_history: List of previous messages (ChatMessage objects or dicts)
+
+        Returns:
+            Rendered prompt string
+        """
         if current_date is None:
             current_date = date.today()
 
         date_examples = self._get_date_examples(current_date)
+
+        # Format conversation history if present
+        formatted_history = []
+        if conversation_history:
+            for msg in conversation_history:
+                # Handle both dict and object formats
+                if isinstance(msg, dict):
+                    formatted_history.append(
+                        {"role": msg.get("role"), "content": msg.get("content")}
+                    )
+                else:
+                    formatted_history.append({"role": msg.role, "content": msg.content})
 
         return self.unified_template.render(
             user_input=user_input,
             current_date=current_date.isoformat(),
             date_examples=date_examples,
             categories=categories or [],
+            conversation_history=formatted_history,
         )
 
     def generate_unified_prompt_v3(

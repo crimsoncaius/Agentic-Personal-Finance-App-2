@@ -70,8 +70,14 @@ class ApiService {
     );
   }
 
-  async sendChatMessage(message: string): Promise<ChatResponse> {
-    const request: ChatRequest = { text: message };
+  async sendChatMessage(
+    message: string,
+    chatId?: string
+  ): Promise<ChatResponse> {
+    const request: ChatRequest = {
+      text: message,
+      ...(chatId && { chat_id: chatId }),
+    };
     return this.request<ChatResponse>("/chat/", {
       method: "POST",
       body: JSON.stringify(request),

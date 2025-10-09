@@ -8,6 +8,7 @@ import time
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Dict, List, Optional, Union
+from uuid import uuid4
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
@@ -28,6 +29,7 @@ try:
     )
     from services.prompt_manager import PromptManager
     from services.langfuse_service_v2 import langfuse_service_v2 as langfuse_service
+    from services.redis_service import redis_service
 except ImportError:
     # If running from project root, try backend.*
     from backend.database.connection import db_connection
@@ -44,6 +46,7 @@ except ImportError:
     from backend.services.langfuse_service_v2 import (
         langfuse_service_v2 as langfuse_service,
     )
+    from backend.services.redis_service import redis_service
 
 
 class NLPServiceV2:
@@ -79,8 +82,15 @@ class NLPServiceV2:
             None  # Store current user_id for request context
         )
 
+        # Redis service for conversation memory
+        self.redis = redis_service
+
     async def process_query(
-        self, text: str, user_id: str = None, session_id: str = None
+        self,
+        text: str,
+        user_id: str = None,
+        session_id: str = None,
+        chat_id: str = None,
     ) -> Union[Dict, ParseError]:
         """
         Process a natural language query and return the result
@@ -89,12 +99,17 @@ class NLPServiceV2:
             text: Natural language input from user
             user_id: Optional user identifier for tracing
             session_id: Optional session identifier for tracing
+            chat_id: Optional chat identifier for conversation context
 
         Returns:
-            Dictionary with operation result or ParseError
+            Dictionary with operation result, ParseError, and chat_id
         """
         # Store user_id in instance for access in workflow nodes
         self._current_user_id = user_id
+
+        # Generate chat_id if not provided
+        if not chat_id:
+            chat_id = str(uuid4())
 
         # Create main trace for the entire query processing
         async with self.langfuse.trace_operation(
@@ -107,11 +122,23 @@ class NLPServiceV2:
             try:
                 start_time = time.time()
 
+                # Retrieve conversation history from Redis
+                conversation_history = await self.redis.get_conversation_history(
+                    chat_id
+                )
+
                 # Create the LangGraph workflow
                 workflow = self._create_workflow()
 
-                # Execute the workflow with tracing
-                result = await workflow.ainvoke({"text": text, "trace_id": trace_id})
+                # Execute the workflow with tracing and conversation history
+                result = await workflow.ainvoke(
+                    {
+                        "text": text,
+                        "trace_id": trace_id,
+                        "chat_id": chat_id,
+                        "conversation_history": conversation_history,
+                    }
+                )
 
                 # Calculate total processing time
                 total_duration = time.time() - start_time
@@ -135,26 +162,41 @@ class NLPServiceV2:
                         hasattr(result["error"], "code")
                         and result["error"].code == "ambiguous"
                     ):
+                        assistant_message = result.get(
+                            "message",
+                            "I'm not sure what you'd like to do. Could you please clarify?",
+                        )
+
+                        # Store messages in Redis for conversation continuity
+                        await self.redis.store_message(chat_id, "user", text)
+                        await self.redis.store_message(
+                            chat_id, "assistant", assistant_message
+                        )
+
                         # Return the success response with the generated message
                         return {
                             "operation": result.get("operation", "unsure"),
                             "result": result.get("result", []),
-                            "message": result.get(
-                                "message",
-                                "I'm not sure what you'd like to do. Could you please clarify?",
-                            ),
+                            "message": assistant_message,
+                            "chat_id": chat_id,
                         }
                     else:
-                        # Return actual errors
+                        # Return actual errors (don't store in conversation)
                         return result["error"]
+
+                # Store successful conversation in Redis
+                assistant_message = result.get(
+                    "message", "Operation completed successfully"
+                )
+                await self.redis.store_message(chat_id, "user", text)
+                await self.redis.store_message(chat_id, "assistant", assistant_message)
 
                 # Return the result in the expected format
                 return {
                     "operation": result.get("operation", "read"),
                     "result": result.get("result", []),
-                    "message": result.get(
-                        "message", "Operation completed successfully"
-                    ),
+                    "message": assistant_message,
+                    "chat_id": chat_id,
                 }
 
             except Exception as e:
@@ -189,6 +231,8 @@ class NLPServiceV2:
             error: Optional[ParseError]
             message: Optional[str]
             trace_id: Optional[str]
+            chat_id: Optional[str]
+            conversation_history: Optional[List]
 
         # Create the graph
         workflow = StateGraph(WorkflowState)
@@ -267,9 +311,27 @@ class NLPServiceV2:
                 # Get current date for context
                 current_date = date.today()
 
-                # Generate unified prompt
+                # Get conversation history from state
+                conversation_history = state.get("conversation_history", [])
+
+                # Convert ChatMessage objects to dicts for prompt manager
+                history_dicts = []
+                if conversation_history:
+                    for msg in conversation_history:
+                        if hasattr(msg, "to_dict"):
+                            history_dicts.append(msg.to_dict())
+                        elif hasattr(msg, "__dict__"):
+                            history_dicts.append(
+                                {
+                                    "role": msg.role,
+                                    "content": msg.content,
+                                    "timestamp": msg.timestamp,
+                                }
+                            )
+
+                # Generate unified prompt with conversation history
                 prompt = self.prompt_manager.generate_unified_prompt(
-                    state["text"], current_date, category_list
+                    state["text"], current_date, category_list, history_dicts
                 )
 
                 # Use Langfuse-tracked LLM call for unified parsing

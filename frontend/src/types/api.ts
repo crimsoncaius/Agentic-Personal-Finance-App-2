@@ -29,12 +29,14 @@ export interface EntryListResponse {
 
 export interface ChatRequest {
   text: string;
+  chat_id?: string;
 }
 
 export interface ChatResponse {
-  mutate: boolean;
+  operation: "read" | "write" | "unsure";
   result: EntryResponse | EntryResponse[] | string[];
   message: string;
+  chat_id: string;
 }
 
 export interface ErrorResponse {

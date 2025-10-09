@@ -38,6 +38,11 @@ class DatabaseTableTester:
             "idx_category_type",
             "idx_category_parent",
             "idx_category_is_system",
+            # User isolation indexes (Migration 002)
+            "idx_entry_user_id",
+            "idx_entry_user_date",
+            "idx_entry_user_direction",
+            "idx_entry_user_category",
         ]
         self.required_functions = ["update_updated_at_column"]
         self.required_triggers = [
@@ -55,6 +60,7 @@ class DatabaseTableTester:
             ("Custom Types Test", self.test_custom_types),
             ("Tables Existence Test", self.test_tables_exist),
             ("Table Structure Test", self.test_table_structures),
+            ("User Isolation Features Test", self.test_user_isolation),
             ("Indexes Test", self.test_indexes),
             ("Functions Test", self.test_functions),
             ("Triggers Test", self.test_triggers),
@@ -175,6 +181,7 @@ class DatabaseTableTester:
                     "parse_confidence",
                     "created_at",
                     "updated_at",
+                    "user_id",  # Added in Migration 002
                 ]
                 for field in required_entry_fields:
                     if field not in entry_row:
@@ -185,6 +192,100 @@ class DatabaseTableTester:
             return True
         except Exception as e:
             print(f"   Table structure error: {e}")
+            return False
+
+    async def test_user_isolation(self) -> bool:
+        """Test user isolation features from migrations"""
+        try:
+            SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001"
+
+            # Test 1: user_id column exists and is NOT NULL
+            print("   Testing user_id column...")
+            entry_result = (
+                self.connection.client.table("entry")
+                .select("user_id")
+                .limit(1)
+                .execute()
+            )
+            if not entry_result.data:
+                print("   ⚠️  No entries found to test user_id")
+            else:
+                print("   ✓ user_id column exists and is accessible")
+
+            # Test 2: Check all entries have user_id (NOT NULL enforced)
+            print("   Testing NOT NULL constraint...")
+            total = (
+                self.connection.client.table("entry")
+                .select("id", count="exact")
+                .execute()
+            )
+            null_check = (
+                self.connection.client.table("entry")
+                .select("id", count="exact")
+                .is_("user_id", "null")
+                .execute()
+            )
+
+            if null_check.count > 0:
+                print(f"   ❌ Found {null_check.count} entries with NULL user_id")
+                return False
+            else:
+                print(
+                    f"   ✓ All {total.count} entries have user_id (NOT NULL enforced)"
+                )
+
+            # Test 3: Check views exist
+            print("   Testing views...")
+            try:
+                user_entries = (
+                    self.connection.client.table("user_entries")
+                    .select("*")
+                    .limit(1)
+                    .execute()
+                )
+                print("   ✓ user_entries view exists")
+            except Exception as e:
+                print(f"   ❌ user_entries view not found: {e}")
+                return False
+
+            try:
+                user_summary = (
+                    self.connection.client.table("user_summary")
+                    .select("*")
+                    .limit(1)
+                    .execute()
+                )
+                print("   ✓ user_summary view exists")
+            except Exception as e:
+                print(f"   ❌ user_summary view not found: {e}")
+                return False
+
+            # Test 4: Test user-specific query performance
+            print("   Testing user query performance...")
+            import time
+
+            start = time.time()
+            user_query = (
+                self.connection.client.table("entry")
+                .select("id")
+                .eq("user_id", SYSTEM_USER_ID)
+                .limit(10)
+                .execute()
+            )
+            elapsed = time.time() - start
+
+            if elapsed < 0.5:
+                print(f"   ✓ User query performed well ({elapsed*1000:.0f}ms)")
+            else:
+                print(
+                    f"   ⚠️  User query was slow ({elapsed*1000:.0f}ms) - indexes may be missing"
+                )
+
+            print("   ✓ User isolation features are working")
+            return True
+
+        except Exception as e:
+            print(f"   User isolation test error: {e}")
             return False
 
     async def test_indexes(self) -> bool:

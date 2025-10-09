@@ -28,10 +28,51 @@ except ImportError:
 class SampleDataGenerator:
     """Generate realistic sample data for testing and development"""
 
-    def __init__(self, user_id: str = None):
+    SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001"
+
+    def __init__(self, user_id: str):
+        """
+        Initialize data generator
+
+        Args:
+            user_id: UUID of user to generate data for (REQUIRED)
+
+        Raises:
+            ValueError: If user_id is system user or invalid
+        """
+        if not user_id:
+            raise ValueError("user_id is required")
+
+        if user_id == self.SYSTEM_USER_ID:
+            raise ValueError(
+                f"Cannot generate data for system user ({self.SYSTEM_USER_ID}). "
+                "System user is reserved for legacy data."
+            )
+
         self.categories = {}
         self.entries_data = []
         self.user_id = user_id
+
+    async def validate_user_exists(self):
+        """Validate that user exists in database"""
+        try:
+            # Check if user has any entries (validates user exists)
+            result = (
+                db_connection.client.table("entry")
+                .select("id")
+                .eq("user_id", self.user_id)
+                .limit(1)
+                .execute()
+            )
+
+            # If we can query without error, user_id is valid
+            print(f"✓ Validated user_id: {self.user_id}")
+        except Exception as e:
+            raise ValueError(
+                f"Failed to validate user_id {self.user_id}. "
+                "User may not exist in auth.users. "
+                f"Error: {e}"
+            )
 
     async def load_categories(self):
         """Load existing categories from database"""
@@ -260,9 +301,8 @@ class SampleDataGenerator:
                         ),
                     }
 
-                    # Add user_id if provided
-                    if self.user_id:
-                        entry_data["user_id"] = self.user_id
+                    # Add user_id (required)
+                    entry_data["user_id"] = self.user_id
 
                     entries.append(entry_data)
 
@@ -402,9 +442,8 @@ class SampleDataGenerator:
                         ),
                     }
 
-                    # Add user_id if provided
-                    if self.user_id:
-                        entry_data["user_id"] = self.user_id
+                    # Add user_id (required)
+                    entry_data["user_id"] = self.user_id
 
                     entries.append(entry_data)
 
@@ -445,6 +484,10 @@ class SampleDataGenerator:
     async def generate_sample_data(self):
         """Generate and insert all sample data"""
         print("🚀 Starting sample data generation...")
+        print(f"👤 User ID: {self.user_id}")
+
+        # Validate user exists
+        await self.validate_user_exists()
 
         # Load categories
         await self.load_categories()
@@ -485,15 +528,25 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Generate sample data for Expense Tracker"
+        description="Generate 6 months of sample data for a specific user"
     )
     parser.add_argument(
-        "--user-id", type=str, help="User ID to associate entries with (optional)"
+        "--user-id",
+        type=str,
+        required=True,
+        help="User ID (UUID) to generate data for (REQUIRED)",
     )
     args = parser.parse_args()
 
-    generator = SampleDataGenerator(user_id=args.user_id)
-    await generator.generate_sample_data()
+    try:
+        generator = SampleDataGenerator(user_id=args.user_id)
+        await generator.generate_sample_data()
+    except ValueError as e:
+        print(f"\n❌ Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
