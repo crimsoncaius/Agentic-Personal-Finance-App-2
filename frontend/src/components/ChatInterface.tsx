@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ChatResponse, EntryResponse } from "../types/api";
 import { apiService } from "../services/api";
+import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 
 interface Message {
   id: string;
@@ -18,6 +19,16 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [chatId, setChatId] = useState<string | undefined>();
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const {
+    isRecording,
+    isProcessing: isVoiceProcessing,
+    error: voiceError,
+    startRecording,
+    stopRecording,
+    clearError,
+  } = useVoiceRecorder();
 
   const examplePrompts = [
     "spent $20 on coffee",
@@ -68,17 +79,15 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
         type: "assistant",
         content: response.message,
         entries:
-          response.result &&
-          Array.isArray(response.result) &&
-          response.result.length > 0
-            ? response.result
+          response.entries && response.entries.length > 0
+            ? response.entries
             : undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Trigger refresh if data was mutated (write operation creates an entry)
-      if (response.operation === "write" && response.result && onEntryCreated) {
+      // Trigger refresh if entries were created/updated
+      if (response.entries && response.entries.length > 0 && onEntryCreated) {
         onEntryCreated();
       }
     } catch (error) {
@@ -104,6 +113,112 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  };
+
+  const handleVoiceToggle = async () => {
+    try {
+      if (isRecording) {
+        // Stop recording and get audio blob
+        const audioBlob = await stopRecording();
+        if (audioBlob) {
+          // Step 1: Transcription
+          setIsTranscribing(true);
+
+          try {
+            const transcriptionResult = await apiService.transcribeAudio(
+              audioBlob
+            );
+
+            // Add user message with transcription immediately
+            const userMessage: Message = {
+              id: Date.now().toString(),
+              type: "user",
+              content: transcriptionResult.text,
+            };
+            setMessages((prev) => [...prev, userMessage]);
+
+            setIsTranscribing(false);
+            setIsLoading(true);
+
+            // Add thinking message for NLP processing
+            const thinkingMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              type: "thinking",
+              content: "Processing your request...",
+            };
+            setMessages((prev) => [...prev, thinkingMessage]);
+
+            // Step 2: NLP Processing
+            const chatResponse = await apiService.sendChatMessage(
+              transcriptionResult.text,
+              chatId
+            );
+
+            // Remove thinking message
+            setMessages((prev) =>
+              prev.filter((msg) => msg.type !== "thinking")
+            );
+
+            // Store chat_id from response for conversation continuity
+            if (chatResponse.chat_id) {
+              setChatId(chatResponse.chat_id);
+            }
+
+            // Add assistant response
+            const assistantMessage: Message = {
+              id: (Date.now() + 2).toString(),
+              type: "assistant",
+              content: chatResponse.message,
+              entries:
+                chatResponse.entries && chatResponse.entries.length > 0
+                  ? chatResponse.entries
+                  : undefined,
+            };
+
+            setMessages((prev) => [...prev, assistantMessage]);
+
+            // Trigger refresh if entries were created/updated
+            if (
+              chatResponse.entries &&
+              chatResponse.entries.length > 0 &&
+              onEntryCreated
+            ) {
+              onEntryCreated();
+            }
+          } catch (error) {
+            // Remove thinking message if it exists
+            setMessages((prev) =>
+              prev.filter((msg) => msg.type !== "thinking")
+            );
+
+            // Add error message
+            const errorMessage: Message = {
+              id: (Date.now() + 2).toString(),
+              type: "assistant",
+              content: `Error: ${
+                error instanceof Error
+                  ? error.message
+                  : "Voice processing failed"
+              }`,
+            };
+
+            setMessages((prev) => [...prev, errorMessage]);
+          } finally {
+            setIsTranscribing(false);
+            setIsLoading(false);
+          }
+        }
+      } else {
+        // Start recording
+        await startRecording();
+      }
+    } catch (error) {
+      console.error("Voice recording error:", error);
     }
   };
 
@@ -297,26 +412,73 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
 
       {/* Input */}
       <div className="p-4 border-t border-gray-700/50">
+        {/* Voice Error Display */}
+        {voiceError && (
+          <div className="mb-3 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="text-red-400">⚠️</span>
+                <span className="text-red-300 text-sm">{voiceError}</span>
+              </div>
+              <button
+                onClick={clearError}
+                className="text-red-400 hover:text-red-300 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex space-x-3">
           <div className="flex-1 relative">
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyPress={handleKeyPress}
               placeholder="Ask about your finances..."
               className="w-full bg-gray-800/50 text-white px-4 py-3 rounded-xl border border-gray-700/50 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 placeholder-gray-400"
-              disabled={isLoading}
+              disabled={isLoading || isTranscribing}
             />
-            {isLoading && (
+            {(isLoading || isTranscribing) && (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
               </div>
             )}
           </div>
+
+          {/* Voice Recording Button */}
+          <button
+            onClick={handleVoiceToggle}
+            disabled={isLoading || isTranscribing || isVoiceProcessing}
+            className={`px-4 py-3 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none disabled:cursor-not-allowed ${
+              isRecording
+                ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 animate-pulse"
+                : isVoiceProcessing || isTranscribing
+                ? "bg-gradient-to-r from-gray-600 to-gray-700"
+                : "bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600"
+            } text-white`}
+            title={
+              isRecording
+                ? "Click to stop recording"
+                : isVoiceProcessing || isTranscribing
+                ? "Processing..."
+                : "Click to start voice recording"
+            }
+          >
+            {isRecording ? (
+              <span className="text-lg">🎤</span>
+            ) : isVoiceProcessing || isTranscribing ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+            ) : (
+              <span className="text-lg">🎤</span>
+            )}
+          </button>
+
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || isTranscribing}
             className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none"
           >
             {isLoading ? "..." : "Send"}

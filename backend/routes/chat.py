@@ -4,7 +4,8 @@ Chat/NLP routes for Expense Tracker MVP
 
 import os
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from openai import OpenAI
 
 from middleware.auth import get_current_user_id
 from models.schemas import (
@@ -16,8 +17,10 @@ from models.schemas import (
     CategoryResponse,
     ChatMessage,
     ConversationHistoryResponse,
+    TranscriptionResponse,
+    VoiceChatResponse,
 )
-from services.nlp_factory import create_nlp_service, get_nlp_service_info
+from services.agent_service import AgentService
 from services.redis_service import redis_service
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
@@ -26,24 +29,28 @@ router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 @router.get("/service-info")
 async def get_service_info():
     """Get information about the current NLP service configuration."""
-    return get_nlp_service_info()
+    return {
+        "version": "v3",
+        "class_name": "AgentService",
+        "description": "LangGraph ReAct agent with fetch, create, and update tools",
+    }
 
 
 @router.post("/", response_model=ChatResponse)
 async def chat_query(
     request: ChatRequest, user_id: UUID = Depends(get_current_user_id)
 ):
-    """Handle natural language queries for both read and write operations"""
+    """Handle natural language queries"""
     try:
         # Get OpenAI API key from environment
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
 
-        # Initialize NLP service using factory
-        nlp_service = create_nlp_service(openai_api_key)
+        # Initialize NLP service
+        nlp_service = AgentService(openai_api_key)
 
-        # Process the query with user context and chat_id for conversation memory
+        # Process the query
         result = await nlp_service.process_query(
             request.text, user_id=str(user_id), chat_id=request.chat_id
         )
@@ -54,19 +61,9 @@ async def chat_query(
                 status_code=400, detail=ErrorResponse(error=result).model_dump()
             )
 
-        # Return successful response
-        # Convert result to proper format
-        if result["operation"] == "write":
-            # For write operations, result can be either a dict or a list with one entry
-            # V3 returns a list, V2 returns a dict
-            result_data = result["result"]
-            if isinstance(result_data, list):
-                # V3 format: list with one entry
-                entry_dict = result_data[0] if result_data else {}
-            else:
-                # V2 format: single dict
-                entry_dict = result_data
-
+        # Convert entries to proper format
+        entries = []
+        for entry_dict in result.get("entries", []):
             # Convert category to proper format if it exists
             category = None
             if entry_dict.get("category"):
@@ -74,102 +71,27 @@ async def chat_query(
                 category = CategoryResponse(
                     id=cat["id"],
                     name=cat["name"],
-                    type=cat.get(
-                        "type", "expense"
-                    ),  # Default to expense if type missing
+                    type=cat.get("type", "expense"),
                 )
 
-            # Convert to EntryResponse format
             entry_response = EntryResponse(
                 id=entry_dict["id"],
-                amount=entry_dict["amount"],  # Keep as Decimal for proper serialization
+                amount=entry_dict["amount"],
                 direction=entry_dict["direction"],
                 entry_date=entry_dict["entry_date"],
                 category=category,
                 description=entry_dict["description"],
-                source=entry_dict["source"],
-                parse_confidence=entry_dict.get("parse_confidence"),
                 created_at=entry_dict["created_at"],
             )
-            return ChatResponse(
-                operation="write",
-                result=entry_response,
-                message=result.get("message", "Entry created successfully"),
-                chat_id=result.get("chat_id"),
-            )
-        elif result["operation"] == "unsure":
-            # For unsure operations, return the suggestions and message
-            return ChatResponse(
-                operation="unsure",
-                result=result.get("result", []),  # This contains the suggestions
-                message=result.get(
-                    "message",
-                    "I'm not sure what you'd like to do. Could you please clarify?",
-                ),
-                chat_id=result.get("chat_id"),
-            )
-        else:
-            # For read operations, result is already a list of entry dictionaries
-            # Convert each entry to EntryResponse format if it has all required fields
-            # Otherwise, return raw data (for partial queries like analytics)
-            entries = []
-            for entry_dict in result["result"]:
-                # Check if entry has all required fields for EntryResponse
-                required_fields = [
-                    "id",
-                    "amount",
-                    "direction",
-                    "entry_date",
-                    "description",
-                    "source",
-                    "created_at",
-                ]
-                has_all_fields = all(field in entry_dict for field in required_fields)
+            entries.append(entry_response)
 
-                if not has_all_fields:
-                    # Return raw result for partial data (e.g., analytics queries)
-                    return ChatResponse(
-                        operation="read",
-                        result=result["result"],  # Return raw data as-is
-                        message=result.get("message", "Query completed successfully"),
-                        chat_id=result.get("chat_id"),
-                    )
+        # Return simplified response
+        return ChatResponse(
+            message=result.get("message", "I processed your request."),
+            entries=entries,
+            chat_id=result.get("chat_id"),
+        )
 
-                # Convert category to proper format if it exists
-                category = None
-                if entry_dict.get("category"):
-                    cat = entry_dict["category"]
-                    category = CategoryResponse(
-                        id=cat["id"],
-                        name=cat["name"],
-                        type=cat.get(
-                            "type", "expense"
-                        ),  # Default to expense if type missing
-                    )
-
-                entry_response = EntryResponse(
-                    id=entry_dict["id"],
-                    amount=entry_dict[
-                        "amount"
-                    ],  # Keep as Decimal for proper serialization
-                    direction=entry_dict["direction"],
-                    entry_date=entry_dict["entry_date"],
-                    category=category,
-                    description=entry_dict["description"],
-                    source=entry_dict["source"],
-                    parse_confidence=entry_dict.get("parse_confidence"),
-                    created_at=entry_dict["created_at"],
-                )
-                entries.append(entry_response)
-            return ChatResponse(
-                operation="read",
-                result=entries,
-                message=result.get("message", "Query completed successfully"),
-                chat_id=result.get("chat_id"),
-            )
-
-    except HTTPException:
-        raise
     except Exception as e:
         import traceback
 
@@ -224,3 +146,153 @@ async def clear_conversation(
         raise HTTPException(
             status_code=500, detail=f"Failed to clear conversation: {str(e)}"
         )
+
+
+@router.post("/transcribe", response_model=TranscriptionResponse)
+async def transcribe_audio(
+    audio_file: UploadFile = File(...), user_id: UUID = Depends(get_current_user_id)
+):
+    """Transcribe audio file using OpenAI Whisper API"""
+    try:
+        # Get OpenAI API key from environment
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+
+        # Initialize OpenAI client
+        client = OpenAI(api_key=openai_api_key)
+
+        # Validate file type
+        if not audio_file.content_type or not audio_file.content_type.startswith(
+            "audio/"
+        ):
+            raise HTTPException(status_code=400, detail="File must be an audio file")
+
+        # Reset file pointer to beginning
+        await audio_file.seek(0)
+
+        # Read the file content
+        file_content = await audio_file.read()
+
+        # Create a temporary file-like object for OpenAI
+        import io
+
+        audio_file_obj = io.BytesIO(file_content)
+        audio_file_obj.name = audio_file.filename or "audio.webm"
+
+        # Transcribe using OpenAI Whisper API
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file_obj,
+            response_format="text",
+            language="en",
+        )
+
+        return TranscriptionResponse(text=transcription)
+
+    except Exception as e:
+        import traceback
+
+        print(f"ERROR in transcribe endpoint: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+
+
+@router.post("/voice", response_model=VoiceChatResponse)
+async def voice_chat(
+    audio_file: UploadFile = File(...),
+    chat_id: str = None,
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Handle voice chat with transcription and NLP processing"""
+    try:
+        # Get OpenAI API key from environment
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+
+        # Initialize OpenAI client
+        client = OpenAI(api_key=openai_api_key)
+
+        # Validate file type
+        if not audio_file.content_type or not audio_file.content_type.startswith(
+            "audio/"
+        ):
+            raise HTTPException(status_code=400, detail="File must be an audio file")
+
+        # Reset file pointer to beginning
+        await audio_file.seek(0)
+
+        # Read the file content
+        file_content = await audio_file.read()
+
+        # Create a temporary file-like object for OpenAI
+        import io
+
+        audio_file_obj = io.BytesIO(file_content)
+        audio_file_obj.name = audio_file.filename or "audio.webm"
+
+        # Transcribe using OpenAI Whisper API
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file_obj,
+            response_format="text",
+            language="en",
+        )
+
+        # Initialize NLP service
+        nlp_service = AgentService(openai_api_key)
+
+        # Process the transcribed text through the NLP service
+        result = await nlp_service.process_query(
+            transcription, user_id=str(user_id), chat_id=chat_id
+        )
+
+        # Check if result is an error
+        if isinstance(result, ParseError):
+            raise HTTPException(
+                status_code=400, detail=ErrorResponse(error=result).model_dump()
+            )
+
+        # Convert entries to proper format
+        entries = []
+        for entry_dict in result.get("entries", []):
+            # Convert category to proper format if it exists
+            category = None
+            if entry_dict.get("category"):
+                cat = entry_dict["category"]
+                category = CategoryResponse(
+                    id=cat["id"],
+                    name=cat["name"],
+                    type=cat.get("type", "expense"),
+                )
+
+            entry_response = EntryResponse(
+                id=entry_dict["id"],
+                amount=entry_dict["amount"],
+                direction=entry_dict["direction"],
+                entry_date=entry_dict["entry_date"],
+                category=category,
+                description=entry_dict["description"],
+                created_at=entry_dict["created_at"],
+            )
+            entries.append(entry_response)
+
+        # Create chat response
+        chat_response = ChatResponse(
+            message=result.get("message", "I processed your request."),
+            entries=entries,
+            chat_id=result.get("chat_id"),
+        )
+
+        # Return voice chat response with both transcription and chat response
+        return VoiceChatResponse(
+            transcription=transcription, chat_response=chat_response
+        )
+
+    except Exception as e:
+        import traceback
+
+        print(f"ERROR in voice chat endpoint: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Voice chat failed: {str(e)}")

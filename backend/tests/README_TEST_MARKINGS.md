@@ -16,6 +16,8 @@ These markers indicate which external dependencies are mocked vs real:
 - **`db_real`** - Uses real database connections and operations
 - **`llm_mock`** - LLM/OpenAI API calls are mocked
 - **`llm_real`** - Uses real LLM/OpenAI API calls
+- **`auth_mock`** - Authentication dependencies are mocked (no real users/sessions)
+- **`auth_real`** - Uses real authentication with test users
 
 ### Test Type Markers
 
@@ -48,6 +50,7 @@ pytestmark = [
     pytest.mark.fast,
     pytest.mark.db_mock,
     pytest.mark.llm_mock,
+    pytest.mark.auth_mock,
 ]
 ```
 
@@ -60,6 +63,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.db_real,
     pytest.mark.llm_mock,
+    pytest.mark.auth_real,  # or auth_mock for faster tests
 ]
 ```
 
@@ -73,6 +77,7 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.db_mock,
     pytest.mark.llm_real,
+    pytest.mark.auth_mock,
 ]
 ```
 
@@ -86,6 +91,7 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.db_real,
     pytest.mark.llm_real,
+    pytest.mark.auth_real,
 ]
 ```
 
@@ -117,6 +123,18 @@ pytest -m "integration and db_real"
 pytest -m "llm_real"
 ```
 
+### Run tests with real authentication
+
+```bash
+pytest -m "auth_real"
+```
+
+### Run tests without authentication (mocked)
+
+```bash
+pytest -m "auth_mock"
+```
+
 ### Run tests without slow tests
 
 ```bash
@@ -133,16 +151,13 @@ pytest -m "not e2e"
 
 The test suite is organized with clean, consistent naming:
 
-| File                      | Type        | DB   | LLM  | Purpose                       |
-| ------------------------- | ----------- | ---- | ---- | ----------------------------- |
-| `test_models.py`          | unit        | mock | mock | Model validation (fast)       |
-| `test_services.py`        | integration | real | mock | Service layer with real DB    |
-| `test_routes.py`          | integration | real | real | API routes with real DB + LLM |
-| `test_nlp.py`             | unit        | mock | mock | NLP service unit tests (fast) |
-| `test_nlp_integration.py` | integration | mock | real | NLP service with real LLM     |
-| `test_nlp_e2e_mock.py`    | integration | mock | mock | NLP e2e tests (mocked)        |
-| `test_nlp_e2e.py`         | e2e         | real | real | NLP e2e tests (real)          |
-| `test_chat.py`            | unit        | mock | mock | Chat route unit tests (fast)  |
+| File                    | Type        | DB   | LLM  | Auth | Purpose                         |
+| ----------------------- | ----------- | ---- | ---- | ---- | ------------------------------- |
+| `test_models.py`        | unit        | mock | mock | mock | Model validation (fast)         |
+| `test_services.py`      | integration | real | mock | real | Service layer with real DB+auth |
+| `test_agent_service.py` | unit        | mock | mock | mock | Agent service unit tests (fast) |
+| `test_chat_routes.py`   | integration | real | mock | mock | Chat API routes (mocked LLM)    |
+| `test_entry_routes.py`  | integration | real | N/A  | mock | Entry API routes (mocked auth)  |
 
 ## File Examples
 
@@ -154,6 +169,7 @@ pytestmark = [
     pytest.mark.fast,
     pytest.mark.db_mock,  # No database operations in model tests
     pytest.mark.llm_mock,  # No LLM operations in model tests
+    pytest.mark.auth_mock,  # No authentication in model tests
 ]
 ```
 
@@ -165,17 +181,19 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.db_real,  # Uses real database operations
     pytest.mark.llm_mock,  # No LLM operations in service tests
+    pytest.mark.auth_real,  # Uses real authentication with test users
 ]
 ```
 
-### Route Tests (`test_routes.py`)
+### Chat Route Tests (`test_chat_routes.py`)
 
 ```python
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.slow,
     pytest.mark.db_real,  # Uses real database operations
-    pytest.mark.llm_real,  # Uses real LLM/OpenAI API calls (for chat routes)
+    pytest.mark.llm_mock,  # Mock LLM to avoid costs during testing
+    pytest.mark.auth_mock,  # Mock authentication for faster tests
 ]
 ```
 
@@ -209,7 +227,7 @@ pytestmark = [
 
 ## Best Practices
 
-1. **Always specify both dependency markers**: Use both `db_*` and `llm_*` markers
+1. **Always specify all dependency markers**: Use `db_*`, `llm_*`, and `auth_*` markers
 2. **Include test type**: Add `unit`, `integration`, or `e2e` marker
 3. **Add performance marker**: Include `fast` or `slow` for execution time management
 4. **Use comments**: Add inline comments explaining why specific markers are used
@@ -219,6 +237,7 @@ pytestmark = [
 
 - **`db_real` tests**: Require database connection
 - **`llm_real` tests**: Require `OPENAI_API_KEY` environment variable
+- **`auth_real` tests**: Require authentication service and test user creation
 - **`slow` tests**: May take several seconds and cost API credits
 
 ## Troubleshooting

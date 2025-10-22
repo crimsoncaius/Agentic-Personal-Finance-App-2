@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class QuerySpec(BaseModel):
-    """Structured, read-only query specification used by NLPServiceV3.
+    """Structured, read-only query specification used by AgentService.
 
     Notes:
     - Enforces an authoritative 10-row cap via the "limit" field validation.

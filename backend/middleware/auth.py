@@ -52,12 +52,17 @@ class AuthMiddleware:
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
-            return {
+            user_info = {
                 "user_id": user_response.user.id,
                 "email": user_response.user.email,
                 "role": user_response.user.role,
                 "metadata": user_response.user.user_metadata,
             }
+
+            # Store the JWT token in the user info for RLS
+            user_info["jwt_token"] = token
+
+            return user_info
 
         except Exception as e:
             raise HTTPException(

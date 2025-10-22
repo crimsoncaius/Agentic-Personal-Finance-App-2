@@ -1,0 +1,8 @@
+# Ignore all JSON files except the template
+*.json
+!test_data.json
+
+# Allow custom data files to be kept locally without committing
+*_custom.json
+*_local.json
+

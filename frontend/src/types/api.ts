@@ -13,8 +13,6 @@ export interface EntryResponse {
   entry_date: string;
   category?: CategoryResponse;
   description?: string;
-  source: "manual" | "nlp";
-  parse_confidence?: number;
   created_at: string;
 }
 
@@ -33,9 +31,8 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
-  operation: "read" | "write" | "unsure";
-  result: EntryResponse | EntryResponse[] | string[];
   message: string;
+  entries: EntryResponse[];
   chat_id: string;
 }
 
@@ -48,4 +45,13 @@ export interface ErrorResponse {
       suggestions?: string[];
     };
   };
+}
+
+export interface TranscriptionResponse {
+  text: string;
+}
+
+export interface VoiceChatResponse {
+  transcription: string;
+  chat_response: ChatResponse;
 }

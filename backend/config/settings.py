@@ -25,14 +25,12 @@ class Settings(BaseSettings):
 
     # LLM Configuration
     openai_api_key: str
+    nlp_service_version: Optional[str] = "v3"  # NLP service version
 
     # Optional Services
     langfuse_public_key: Optional[str] = None
     langfuse_secret_key: Optional[str] = None
     langfuse_host: str = "https://cloud.langfuse.com"
-
-    # NLP Service Configuration
-    nlp_service_version: str = "v3"
 
     # Redis Configuration
     redis_url: Optional[str] = None  # Railway auto-injects REDIS_URL in production
@@ -41,6 +39,9 @@ class Settings(BaseSettings):
     redis_max_connections: int = 10
     conversation_ttl: int = 3600  # 1 hour
     conversation_history_limit: int = 10  # Last 10 messages
+
+    # Testing Configuration
+    test_user_id: Optional[str] = None  # UUID for test user in development/testing
 
     # Application Settings
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
@@ -94,16 +95,6 @@ class Settings(BaseSettings):
         if self.is_production:
             return self.supabase_service_role_key_prod
         return self.supabase_service_role_key_dev
-
-    def validate_nlp_service_version(self) -> bool:
-        """Validate that the NLP service version is supported."""
-        valid_versions = ["v1", "v2", "v3"]
-        if self.nlp_service_version not in valid_versions:
-            raise ValueError(
-                f"Invalid NLP service version: {self.nlp_service_version}. "
-                f"Valid versions are: {', '.join(valid_versions)}"
-            )
-        return True
 
 
 # Global settings instance

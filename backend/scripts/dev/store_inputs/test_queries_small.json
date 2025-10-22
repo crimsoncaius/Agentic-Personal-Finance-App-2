@@ -3,93 +3,205 @@
     {
       "id": "read_1",
       "query": "show my recent expenses",
-      "expected_pathway": "router -> read -> end",
-      "expected_pathway_v2": "parse -> read_response -> end",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
       "description": "Basic read operation for expenses"
     },
     {
       "id": "read_2",
       "query": "what did I spend this month?",
-      "expected_pathway": "router -> read -> end",
-      "expected_pathway_v2": "parse -> read_response -> end",
-      "description": "Read with time filter"
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Aggregate query - asking for total amount, not list"
+    },
+    {
+      "id": "read_3",
+      "query": "show me all income entries from last week over $500",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Complex read with multiple filters"
+    },
+    {
+      "id": "read_4",
+      "query": "list my groceries purchases",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with category filter"
     },
     {
       "id": "write_1",
       "query": "spent $20 on coffee",
-      "expected_pathway": "router -> write -> end",
-      "expected_pathway_v2": "parse -> write_response -> end",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
       "description": "Basic expense write operation"
     },
     {
       "id": "write_2",
       "query": "earned $1000 salary today",
-      "expected_pathway": "router -> write -> end",
-      "expected_pathway_v2": "parse -> write_response -> end",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
       "description": "Income write operation"
     },
     {
-      "id": "ambiguous_1",
-      "query": "money stuff",
-      "expected_pathway": "router -> unsure -> end",
-      "expected_pathway_v2": "parse -> unsure_response -> end",
-      "description": "Ambiguous query that should trigger unsure pathway"
-    },
-    {
-      "id": "complex_read",
-      "query": "show me all income entries from last week over $500",
-      "expected_pathway": "router -> read -> end",
-      "expected_pathway_v2": "parse -> read_response -> end",
-      "description": "Complex read with multiple filters"
-    },
-    {
-      "id": "complex_write",
+      "id": "write_3",
       "query": "bought groceries for $75.50 at Whole Foods on Monday",
-      "expected_pathway": "router -> write -> end",
-      "expected_pathway_v2": "parse -> write_response -> end",
-      "description": "Detailed expense with store and amount"
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Detailed expense with store and specific date"
     },
     {
-      "id": "date_relative_today",
-      "query": "spent $25 on lunch today",
-      "expected_pathway": "router -> write -> end",
-      "expected_pathway_v2": "parse -> write_response -> end",
-      "description": "Today date reference"
-    },
-    {
-      "id": "date_relative_yesterday",
+      "id": "write_4",
       "query": "bought $30 worth of groceries yesterday",
-      "expected_pathway": "router -> write -> end",
-      "expected_pathway_v2": "parse -> write_response -> end",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
       "description": "Yesterday date reference"
     },
     {
-      "id": "category_food_variation",
-      "query": "spent $25 on food at McDonald's",
-      "expected_pathway": "router -> write -> end",
-      "expected_pathway_v2": "parse -> write_response -> end",
-      "description": "Category variation: food vs Food & Dining"
+      "id": "aggregate_1",
+      "query": "what's my total spending this month?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Sum aggregation for expenses"
     },
     {
-      "id": "gibberish_1",
+      "id": "aggregate_3",
+      "query": "what was my highest expense?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": true,
+      "description": "Max aggregation - may include entry details"
+    },
+    {
+      "id": "update_1",
+      "messages": [
+        { "role": "user", "content": "show my recent expenses" },
+        { "role": "user", "content": "change the first one to $50" }
+      ],
+      "expected_tool_calls": ["fetch_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: fetch then update"
+    },
+    {
+      "id": "update_2",
+      "messages": [
+        { "role": "user", "content": "what was my highest expense?" },
+        {
+          "role": "user",
+          "content": "update its description to 'Holiday shopping'"
+        }
+      ],
+      "expected_tool_calls": ["aggregate_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: aggregate max then update"
+    },
+    {
+      "id": "edge_1",
+      "query": "money stuff",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Ambiguous query - should ask clarification"
+    },
+    {
+      "id": "edge_2",
       "query": "asdfghjkl qwerty 123456",
-      "expected_pathway": "router -> unsure -> end",
-      "expected_pathway_v2": "parse -> unsure_response -> end",
-      "description": "Gibberish input that should trigger unsure"
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Gibberish input"
     },
     {
-      "id": "malformed_negative_amount",
-      "query": "spent $-50 on coffee",
-      "expected_pathway": "router -> write -> end",
-      "expected_pathway_v2": "parse -> write_response -> end",
-      "description": "Malformed: negative amount (should still route to write)"
-    },
-    {
-      "id": "edge_case_empty_string",
+      "id": "edge_3",
       "query": "",
-      "expected_pathway": "router -> unsure -> end",
-      "expected_pathway_v2": "parse -> unsure_response -> end",
-      "description": "Edge case: empty string"
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Empty string"
+    },
+    {
+      "id": "edge_incomplete_1",
+      "query": "record for me my chicken rice spending",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Ambiguous - unclear if read or write, missing amount if write"
+    },
+    {
+      "id": "edge_incomplete_2",
+      "query": "spent on groceries",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing amount"
+    },
+    {
+      "id": "edge_incomplete_4",
+      "query": "add expense",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing all details"
+    },
+    {
+      "id": "edge_incomplete_5",
+      "query": "track my coffee",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Ambiguous - could be read or write, missing amount if write"
+    },
+    {
+      "id": "multi_entry_1",
+      "query": "add chicken rice 5 dollars for me today and yesterday I ate steak for 10 dollars",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries in one query - 2 expenses on different dates"
+    },
+    {
+      "id": "multi_entry_2",
+      "query": "I spent $20 on coffee and $30 on lunch today",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 2 expenses same day"
+    },
+    {
+      "id": "multi_entry_3",
+      "query": "earned $1000 salary and got $50 cashback today",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 2 income entries"
+    },
+    {
+      "id": "category_classification_1",
+      "query": "spent $50 at the doctor",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Health & Fitness (Expense)",
+      "description": "Category classification - doctor visit should map to Health & Fitness"
+    },
+    {
+      "id": "category_classification_2",
+      "query": "paid $1200 for rent this month",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Housing (Expense)",
+      "description": "Category classification - rent should map to Housing"
+    },
+    {
+      "id": "category_classification_3",
+      "query": "bought a textbook for $80",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Education (Expense)",
+      "description": "Category classification - textbook should map to Education"
+    },
+    {
+      "id": "category_classification_4",
+      "query": "got a tax refund of $500",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Refunds (Income)",
+      "description": "Category classification - refund should map to Refunds income"
+    },
+    {
+      "id": "category_classification_5",
+      "query": "spent $25 on something random",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Miscellaneous (Expense)",
+      "description": "Category classification - vague item should default to Miscellaneous"
     }
   ]
 }

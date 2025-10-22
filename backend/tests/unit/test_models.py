@@ -19,7 +19,6 @@ from models.schemas import (
     CategoryQueryParams,
     CategoryResponse,
     ChatRequest,
-    EntryCreateNL,
     EntryCreateStructured,
     EntryListResponse,
     EntryQueryParams,
@@ -40,30 +39,12 @@ class TestEntryModels:
             direction="expense",
             entry_date=date(2025, 1, 15),
             description="Test expense",
-            source="manual",
         )
 
         assert entry.amount == Decimal("12.50")
         assert entry.direction == "expense"
         assert entry.entry_date == date(2025, 1, 15)
         assert entry.description == "Test expense"
-        assert entry.source == "manual"
-
-    def test_entry_create_structured_nlp_source(self):
-        """Test structured entry with NLP source (should not have parse_confidence)"""
-        entry = EntryCreateStructured(
-            amount=Decimal("12.50"),
-            direction="expense",
-            entry_date=date(2025, 1, 15),
-            description="Test expense",
-            source="nlp",
-        )
-
-        assert entry.amount == Decimal("12.50")
-        assert entry.direction == "expense"
-        assert entry.entry_date == date(2025, 1, 15)
-        assert entry.description == "Test expense"
-        assert entry.source == "nlp"
 
     def test_entry_response_valid(self):
         """Test valid entry response"""
@@ -76,8 +57,6 @@ class TestEntryModels:
             entry_date=date(2025, 1, 15),
             category=category,
             description="Coffee",
-            source="manual",
-            parse_confidence=None,
             created_at=datetime.now(),
         )
 
@@ -189,18 +168,6 @@ class TestValidationRules:
                 amount=Decimal("0.00"),
                 direction="expense",
                 entry_date=date(2025, 1, 15),
-            )
-
-    def test_parse_confidence_range(self):
-        """Test parse confidence is within valid range"""
-        with pytest.raises(ValueError):
-            EntryCreateNL(
-                amount=Decimal("12.50"),
-                direction="expense",
-                entry_date=date(2025, 1, 15),
-                description="Test expense",
-                source="nlp",
-                parse_confidence=1.5,  # Should be <= 1.0
             )
 
     def test_entry_update_invalid_amount(self):

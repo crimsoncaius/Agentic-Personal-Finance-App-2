@@ -21,13 +21,6 @@ class EntryDirection(str, Enum):
     INCOME = "income"
 
 
-class SourceType(str, Enum):
-    """Source type enum"""
-
-    MANUAL = "manual"
-    NLP = "nlp"
-
-
 class CategoryKind(str, Enum):
     """Category kind enum"""
 
@@ -135,16 +128,6 @@ class EntryBase(BaseModel):
     entry_date: date
     category_id: Optional[UUID] = None
     description: Optional[str] = Field(None, max_length=500)
-    source: SourceType = SourceType.MANUAL
-    parse_confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
-
-    @field_validator("parse_confidence")
-    @classmethod
-    def validate_parse_confidence(cls, v, info):
-        """Parse confidence should only be set for NLP entries"""
-        if v is not None and info.data.get("source") == SourceType.MANUAL:
-            raise ValueError("Parse confidence should only be set for NLP entries")
-        return v
 
 
 class EntryCreateStructured(BaseModel):
@@ -159,16 +142,6 @@ class EntryCreateStructured(BaseModel):
         json_schema_extra={"example": "280463c5-13c4-47f3-a6aa-db24738af1aa"},
     )
     description: Optional[str] = Field(None, max_length=500)
-    source: SourceType = SourceType.MANUAL
-
-
-class EntryCreateNL(EntryBase):
-    """Entry creation model for NLP entries with parse confidence"""
-
-    source: SourceType = SourceType.NLP
-    parse_confidence: float = Field(
-        ..., ge=0.0, le=1.0, description="Confidence score for NLP parsing"
-    )
 
 
 class EntryUpdate(BaseModel):
@@ -189,6 +162,7 @@ class Entry(EntryBase):
     """Entry model with database fields"""
 
     id: UUID
+    user_id: UUID
     amount_cents: int = Field(..., description="Amount in cents")
     created_at: datetime
     updated_at: datetime
@@ -213,8 +187,6 @@ class EntryResponse(BaseModel):
     entry_date: date
     category: Optional[CategoryResponse] = None
     description: Optional[str]
-    source: SourceType
-    parse_confidence: Optional[float]
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -250,12 +222,23 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Chat response model"""
+    """Unified chat response - LLM decides what to include"""
 
-    operation: Literal["read", "write", "unsure"]
-    result: Union[EntryResponse, List[EntryResponse], List[str], List[Dict[str, Any]]]
-    message: str = Field(..., description="User-friendly response message")
+    message: str = Field(..., description="Natural language response (always present)")
+    entries: List[EntryResponse] = Field(
+        default_factory=list, description="Optional entries (agent decides)"
+    )
     chat_id: str = Field(..., description="Chat ID for this conversation")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "message": "Your total spending this month is $1,234.56 across 45 transactions.",
+                "entries": [],  # Empty for aggregate queries
+                "chat_id": "chat_abc123",
+            }
+        }
+    )
 
 
 class ConversationHistoryResponse(BaseModel):
@@ -266,59 +249,17 @@ class ConversationHistoryResponse(BaseModel):
     count: int
 
 
-# LangGraph specific models
-class ParsedData(BaseModel):
-    """Parsed data from natural language input"""
+class TranscriptionResponse(BaseModel):
+    """Response model for audio transcription"""
 
-    amount: Decimal = Field(..., gt=0, description="Amount in dollars")
-    direction: EntryDirection
-    entry_date: date
-    category: Optional[str] = Field(None, description="Category name from LLM")
-    description: Optional[str] = Field(None, max_length=500)
+    text: str = Field(..., description="Transcribed text from audio")
 
 
-class RouterDecision(BaseModel):
-    """Router decision model"""
+class VoiceChatResponse(BaseModel):
+    """Response model for voice chat with transcription and NLP response"""
 
-    operation: Literal["read", "write", "unsure"]
-
-
-class QueryParams(BaseModel):
-    """Query parameters for read operations"""
-
-    limit: int = Field(default=10, ge=1, le=10)
-    offset: int = Field(default=0, ge=0)
-    date_from: Optional[date] = None
-    date_to: Optional[date] = None
-    direction: Optional[EntryDirection] = None
-    category_id: Optional[UUID] = None
-    amount_min: Optional[Decimal] = None
-    amount_max: Optional[Decimal] = None
-    q: Optional[str] = Field(None, max_length=255)
-    sort: Literal[
-        "entry_date.desc",
-        "entry_date.asc",
-        "amount_cents.desc",
-        "amount_cents.asc",
-        "created_at.desc",
-    ] = "entry_date.desc"
-
-    @field_validator("amount_min", "amount_max")
-    @classmethod
-    def validate_amounts(cls, v):
-        """Amount must be positive"""
-        if v is not None and v <= 0:
-            raise ValueError("Amount must be positive")
-        return v
-
-    @field_validator("date_to")
-    @classmethod
-    def validate_date_range(cls, v, info):
-        """date_to must be after date_from"""
-        if v is not None and info.data.get("date_from") is not None:
-            if v < info.data["date_from"]:
-                raise ValueError("date_to must be after date_from")
-        return v
+    transcription: str = Field(..., description="Transcribed text from audio")
+    chat_response: ChatResponse = Field(..., description="AI agent response")
 
 
 # Error models

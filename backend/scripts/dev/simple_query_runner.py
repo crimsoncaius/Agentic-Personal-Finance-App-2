@@ -56,11 +56,11 @@ sys.path.insert(0, str(backend_dir))
 
 # Try both import paths to handle running from different directories
 try:
-    from services.nlp_service_v3 import NLPServiceV3
+    from services.agent_service import AgentService
     from config.settings import settings
 except ImportError:
     # If running from project root, try backend.services
-    from backend.services.nlp_service_v3 import NLPServiceV3
+    from backend.services.agent_service import AgentService
     from backend.config.settings import settings
 
 
@@ -81,7 +81,7 @@ class SimpleQueryRunner:
             raise ValueError("OPENAI_API_KEY environment variable not set")
 
         # Initialize NLP service (it already has Langfuse integration)
-        self.nlp_service = NLPServiceV3(self.openai_api_key)
+        self.nlp_service = AgentService(self.openai_api_key)
 
         # Generate a session ID for this test run
         self.session_id = f"test_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"

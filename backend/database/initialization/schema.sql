@@ -3,7 +3,6 @@
 
 -- Create custom types
 CREATE TYPE entry_direction AS ENUM ('expense', 'income');
-CREATE TYPE source_type AS ENUM ('manual', 'nlp');
 CREATE TYPE category_kind AS ENUM ('expense', 'income');
 
 -- Create category table
@@ -26,8 +25,6 @@ CREATE TABLE entry (
   entry_date DATE NOT NULL,
   category_id UUID REFERENCES category(id),
   description TEXT,
-  source source_type NOT NULL DEFAULT 'manual',
-  parse_confidence REAL CHECK (parse_confidence >= 0 AND parse_confidence <= 1),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -38,7 +35,6 @@ CREATE INDEX idx_entry_date ON entry(entry_date);
 CREATE INDEX idx_entry_direction ON entry(direction);
 CREATE INDEX idx_entry_category ON entry(category_id);
 CREATE INDEX idx_entry_created_at ON entry(created_at);
-CREATE INDEX idx_entry_source ON entry(source);
 
 -- Create composite indexes for user-scoped queries
 CREATE INDEX idx_entry_user_date ON entry(user_id, entry_date);
@@ -76,8 +72,6 @@ SELECT
     e.entry_date,
     e.category_id,
     e.description,
-    e.source,
-    e.parse_confidence,
     e.created_at,
     e.updated_at,
     u.email as user_email,
@@ -100,8 +94,6 @@ RETURNS TABLE (
     entry_date DATE,
     category_id UUID,
     description TEXT,
-    source source_type,
-    parse_confidence REAL,
     created_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ,
     category_name TEXT,
@@ -116,8 +108,6 @@ BEGIN
         e.entry_date,
         e.category_id,
         e.description,
-        e.source,
-        e.parse_confidence,
         e.created_at,
         e.updated_at,
         c.name as category_name,
