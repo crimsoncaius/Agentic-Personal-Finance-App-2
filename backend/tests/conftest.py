@@ -23,6 +23,15 @@ from database.connection import db_connection
 # ============================================================================
 # Removed organizational markers - keeping only functional asyncio markers
 
+
+def pytest_configure(config):
+    """Register custom markers"""
+    config.addinivalue_line("markers", "auth_mock: Authentication is mocked")
+    config.addinivalue_line(
+        "markers", "auth_real: Uses real authentication with test users"
+    )
+
+
 # ============================================================================
 # CORE FIXTURES
 # ============================================================================
@@ -74,12 +83,79 @@ def mock_openai_key():
 @pytest.fixture
 def mock_nlp_service():
     """Mock NLP service for testing"""
-    from unittest.mock import MagicMock
-    from services.nlp_service import NLPService
+    from unittest.mock import MagicMock, AsyncMock
 
-    mock_service = MagicMock(spec=NLPService)
+    mock_service = MagicMock()
     mock_service.process_query = AsyncMock()
     return mock_service
+
+
+# ============================================================================
+# AUTHENTICATION FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def test_user_id():
+    """Return a mock user ID for testing (no real user created)"""
+    return uuid4()
+
+
+@pytest.fixture
+def mock_user_id():
+    """Return a mock user ID for testing (no real user created)"""
+    return uuid4()
+
+
+@pytest_asyncio.fixture
+async def test_user():
+    """Create a real test user in the database for integration tests"""
+    from services.auth_service import AuthService
+
+    # Generate unique email for test user
+    test_email = f"test_{uuid4().hex[:8]}@example.com"
+    test_password = "TestPassword123!"
+
+    # Register test user
+    result = await AuthService.register_user(
+        email=test_email, password=test_password, name="Test User"
+    )
+
+    user_id = result["user"]["id"]
+
+    yield user_id
+
+    # Cleanup - delete test user
+    # Note: This requires service client access
+    db_connection.service_client.auth.admin.delete_user(user_id)
+
+
+@pytest_asyncio.fixture
+async def mock_auth_dependency():
+    """Mock the get_current_user_id dependency for route tests with a real user"""
+    from services.auth_service import AuthService
+
+    # Generate unique email for mock auth test user
+    test_email = f"mockauth_{uuid4().hex[:8]}@example.com"
+    test_password = "MockAuthPassword123!"
+
+    # Register test user
+    result = await AuthService.register_user(
+        email=test_email, password=test_password, name="Mock Auth User"
+    )
+
+    mock_user_id = result["user"]["id"]
+
+    def mock_get_user_id():
+        return mock_user_id
+
+    yield mock_get_user_id, mock_user_id
+
+    # Cleanup - delete test user
+    try:
+        db_connection.service_client.auth.admin.delete_user(mock_user_id)
+    except Exception:
+        pass  # User might already be deleted
 
 
 # ============================================================================
@@ -151,7 +227,7 @@ async def test_categories():
 
 
 @pytest_asyncio.fixture
-async def test_entries(test_category):
+async def test_entries(test_category, test_user):
     """Create test entries in the database for integration tests"""
     test_entries_data = [
         {
@@ -160,7 +236,7 @@ async def test_entries(test_category):
             "entry_date": "2025-01-15",
             "category_id": test_category["id"],
             "description": "coffee",
-            "source": "manual",
+            "user_id": str(test_user),
         },
         {
             "amount_cents": 5000,  # $50.00
@@ -168,7 +244,7 @@ async def test_entries(test_category):
             "entry_date": "2025-01-14",
             "category_id": test_category["id"],
             "description": "bus pass",
-            "source": "manual",
+            "user_id": str(test_user),
         },
     ]
 
@@ -186,7 +262,7 @@ async def test_entries(test_category):
 
 
 @pytest_asyncio.fixture
-async def test_data_setup():
+async def test_data_setup(test_user):
     """Comprehensive test data setup for integration tests"""
     # Create test categories
     test_categories_data = [
@@ -221,7 +297,7 @@ async def test_data_setup():
             "entry_date": "2025-01-15",
             "category_id": created_categories[0]["id"],
             "description": "coffee",
-            "source": "manual",
+            "user_id": str(test_user),
         },
         {
             "amount_cents": 5000,  # $50.00
@@ -229,7 +305,7 @@ async def test_data_setup():
             "entry_date": "2025-01-14",
             "category_id": created_categories[1]["id"],
             "description": "bus pass",
-            "source": "manual",
+            "user_id": str(test_user),
         },
         {
             "amount_cents": 500000,  # $5000.00
@@ -237,7 +313,7 @@ async def test_data_setup():
             "entry_date": "2025-01-01",
             "category_id": created_categories[2]["id"],
             "description": "salary",
-            "source": "manual",
+            "user_id": str(test_user),
         },
     ]
 
@@ -251,6 +327,85 @@ async def test_data_setup():
         "category": created_categories[0],  # First category for single category tests
         "categories": created_categories,  # All categories for multi-category tests
         "entries": created_entries,
+        "user_id": test_user,
+    }
+
+    # Cleanup
+    for entry in created_entries:
+        db_connection.client.table("entry").delete().eq("id", entry["id"]).execute()
+    for category in created_categories:
+        db_connection.client.table("category").delete().eq(
+            "id", category["id"]
+        ).execute()
+
+
+@pytest_asyncio.fixture
+async def test_data_setup_mock_auth(mock_user_id):
+    """Comprehensive test data setup for integration tests with mocked auth"""
+    # Create test categories
+    test_categories_data = [
+        {
+            "name": f"Test Food & Dining {uuid4().hex[:8]}",
+            "type": "expense",
+            "is_system": True,
+        },
+        {
+            "name": f"Test Transportation {uuid4().hex[:8]}",
+            "type": "expense",
+            "is_system": True,
+        },
+        {
+            "name": f"Test Salary {uuid4().hex[:8]}",
+            "type": "income",
+            "is_system": True,
+        },
+    ]
+
+    created_categories = []
+    for cat_data in test_categories_data:
+        result = db_connection.client.table("category").insert(cat_data).execute()
+        if result.data:
+            created_categories.append(result.data[0])
+
+    # Create test entries with the mock user ID
+    test_entries_data = [
+        {
+            "amount_cents": 2000,  # $20.00
+            "direction": "expense",
+            "entry_date": "2025-01-15",
+            "category_id": created_categories[0]["id"],
+            "description": "coffee",
+            "user_id": str(mock_user_id),
+        },
+        {
+            "amount_cents": 5000,  # $50.00
+            "direction": "expense",
+            "entry_date": "2025-01-14",
+            "category_id": created_categories[1]["id"],
+            "description": "bus pass",
+            "user_id": str(mock_user_id),
+        },
+        {
+            "amount_cents": 500000,  # $5000.00
+            "direction": "income",
+            "entry_date": "2025-01-01",
+            "category_id": created_categories[2]["id"],
+            "description": "salary",
+            "user_id": str(mock_user_id),
+        },
+    ]
+
+    created_entries = []
+    for entry_data in test_entries_data:
+        result = db_connection.client.table("entry").insert(entry_data).execute()
+        if result.data:
+            created_entries.append(result.data[0])
+
+    yield {
+        "category": created_categories[0],  # First category for single category tests
+        "categories": created_categories,  # All categories for multi-category tests
+        "entries": created_entries,
+        "user_id": mock_user_id,
     }
 
     # Cleanup
@@ -291,8 +446,7 @@ def sample_entry_data():
         "entry_date": "2025-01-15",
         "category_id": "550e8400-e29b-41d4-a716-446655440002",
         "description": "laksa lunch",
-        "source": "manual",
-        "parse_confidence": None,
+        "user_id": "550e8400-e29b-41d4-a716-446655440003",
         "created_at": "2025-01-15T10:30:00Z",
         "updated_at": "2025-01-15T10:30:00Z",
     }

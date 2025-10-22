@@ -1,0 +1,12 @@
+{
+  "timing": {
+    "initial_sync_wait_seconds": 30,
+    "delay_between_fetches_seconds": 1,
+    "delay_between_multi_turn_fetches_seconds": 1
+  },
+  "retries": {
+    "batch_fetch_max_retries": 5,
+    "batch_fetch_retry_delay_seconds": 15,
+    "individual_trace_max_retries": 3
+  }
+}

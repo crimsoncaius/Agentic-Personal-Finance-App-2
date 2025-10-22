@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ChatResponse, EntryResponse } from "../types/api";
 import { apiService } from "../services/api";
+import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 
 interface Message {
   id: string;
@@ -17,6 +18,17 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [chatId, setChatId] = useState<string | undefined>();
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const {
+    isRecording,
+    isProcessing: isVoiceProcessing,
+    error: voiceError,
+    startRecording,
+    stopRecording,
+    clearError,
+  } = useVoiceRecorder();
 
   const examplePrompts = [
     "spent $20 on coffee",
@@ -49,8 +61,14 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
 
     try {
       const response: ChatResponse = await apiService.sendChatMessage(
-        input.trim()
+        input.trim(),
+        chatId
       );
+
+      // Store chat_id from response for conversation continuity
+      if (response.chat_id) {
+        setChatId(response.chat_id);
+      }
 
       // Remove thinking message
       setMessages((prev) => prev.filter((msg) => msg.type !== "thinking"));
@@ -60,15 +78,16 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
         id: (Date.now() + 2).toString(),
         type: "assistant",
         content: response.message,
-        entries: Array.isArray(response.result)
-          ? response.result
-          : [response.result],
+        entries:
+          response.entries && response.entries.length > 0
+            ? response.entries
+            : undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Trigger refresh if entries were created
-      if (response.result && onEntryCreated) {
+      // Trigger refresh if entries were created/updated
+      if (response.entries && response.entries.length > 0 && onEntryCreated) {
         onEntryCreated();
       }
     } catch (error) {
@@ -97,18 +116,154 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
     }
   };
 
-  const formatAmount = (amount: number | string, direction: string) => {
-    const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
-    const sign = direction === "expense" ? "-" : "+";
-    return `${sign}$${numAmount.toFixed(2)}`;
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+  const handleVoiceToggle = async () => {
+    try {
+      if (isRecording) {
+        // Stop recording and get audio blob
+        const audioBlob = await stopRecording();
+        if (audioBlob) {
+          // Step 1: Transcription
+          setIsTranscribing(true);
+
+          try {
+            const transcriptionResult = await apiService.transcribeAudio(
+              audioBlob
+            );
+
+            // Add user message with transcription immediately
+            const userMessage: Message = {
+              id: Date.now().toString(),
+              type: "user",
+              content: transcriptionResult.text,
+            };
+            setMessages((prev) => [...prev, userMessage]);
+
+            setIsTranscribing(false);
+            setIsLoading(true);
+
+            // Add thinking message for NLP processing
+            const thinkingMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              type: "thinking",
+              content: "Processing your request...",
+            };
+            setMessages((prev) => [...prev, thinkingMessage]);
+
+            // Step 2: NLP Processing
+            const chatResponse = await apiService.sendChatMessage(
+              transcriptionResult.text,
+              chatId
+            );
+
+            // Remove thinking message
+            setMessages((prev) =>
+              prev.filter((msg) => msg.type !== "thinking")
+            );
+
+            // Store chat_id from response for conversation continuity
+            if (chatResponse.chat_id) {
+              setChatId(chatResponse.chat_id);
+            }
+
+            // Add assistant response
+            const assistantMessage: Message = {
+              id: (Date.now() + 2).toString(),
+              type: "assistant",
+              content: chatResponse.message,
+              entries:
+                chatResponse.entries && chatResponse.entries.length > 0
+                  ? chatResponse.entries
+                  : undefined,
+            };
+
+            setMessages((prev) => [...prev, assistantMessage]);
+
+            // Trigger refresh if entries were created/updated
+            if (
+              chatResponse.entries &&
+              chatResponse.entries.length > 0 &&
+              onEntryCreated
+            ) {
+              onEntryCreated();
+            }
+          } catch (error) {
+            // Remove thinking message if it exists
+            setMessages((prev) =>
+              prev.filter((msg) => msg.type !== "thinking")
+            );
+
+            // Add error message
+            const errorMessage: Message = {
+              id: (Date.now() + 2).toString(),
+              type: "assistant",
+              content: `Error: ${
+                error instanceof Error
+                  ? error.message
+                  : "Voice processing failed"
+              }`,
+            };
+
+            setMessages((prev) => [...prev, errorMessage]);
+          } finally {
+            setIsTranscribing(false);
+            setIsLoading(false);
+          }
+        }
+      } else {
+        // Start recording
+        await startRecording();
+      }
+    } catch (error) {
+      console.error("Voice recording error:", error);
+    }
+  };
+
+  const formatAmount = (
+    amount: number | string | undefined,
+    direction: string
+  ) => {
+    // Handle undefined, null, or invalid amounts
+    if (amount === undefined || amount === null || amount === "") {
+      return direction === "expense" ? "-$0.00" : "+$0.00";
+    }
+
+    // Convert to number, handling both strings and numbers
+    const numAmount =
+      typeof amount === "string" ? parseFloat(amount) : Number(amount);
+
+    // Handle NaN case
+    if (isNaN(numAmount)) {
+      return direction === "expense" ? "-$0.00" : "+$0.00";
+    }
+
+    // Always use the absolute value and apply the correct sign based on direction
+    const sign = direction === "expense" ? "-" : "+";
+    return `${sign}$${Math.abs(numAmount).toFixed(2)}`;
+  };
+
+  const formatDate = (dateString: string | Date) => {
+    try {
+      // Handle both string and Date objects
+      const date =
+        typeof dateString === "string" ? new Date(dateString) : dateString;
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Invalid Date";
+      }
+
+      const day = date.getDate().toString().padStart(2, "0");
+      const month = (date.getMonth() + 1).toString().padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error("Error formatting date:", error, "Input:", dateString);
+      return "Invalid Date";
+    }
   };
 
   return (
@@ -125,7 +280,10 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
           </div>
           {messages.length > 0 && (
             <button
-              onClick={() => setMessages([])}
+              onClick={() => {
+                setMessages([]);
+                setChatId(undefined);
+              }}
               className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors flex items-center space-x-1"
               title="Clear conversation"
             >
@@ -198,39 +356,53 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
               {/* Show entries if present */}
               {message.entries && message.entries.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  {message.entries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/30"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center space-x-2">
-                          <span
-                            className={`font-bold text-lg ${
-                              entry.direction === "expense"
-                                ? "text-red-400"
-                                : "text-green-400"
-                            }`}
-                          >
-                            {formatAmount(entry.amount, entry.direction)}
-                          </span>
-                          <span className="text-gray-400 text-xs">
-                            {formatDate(entry.entry_date)}
-                          </span>
+                  {message.entries.map((entry, index) => {
+                    // Check if this is a full EntryResponse object or raw data
+                    const isFullEntry =
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      "direction" in entry;
+
+                    if (!isFullEntry) {
+                      // This is raw data (like analytics results), don't try to display it
+                      return null;
+                    }
+
+                    return (
+                      <div
+                        key={entry.id || `entry-${index}`}
+                        className="bg-gray-900/50 p-3 rounded-xl border border-gray-700/30"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center space-x-2">
+                            <span
+                              className={`font-bold text-lg ${
+                                entry.direction === "expense"
+                                  ? "text-red-400"
+                                  : "text-green-400"
+                              }`}
+                            >
+                              {formatAmount(entry.amount, entry.direction)}
+                            </span>
+                            <span className="text-gray-400 text-xs">
+                              {formatDate(entry.entry_date)}
+                            </span>
+                          </div>
                         </div>
+                        {entry.description && (
+                          <div className="text-gray-300 text-xs mt-2">
+                            {entry.description}
+                          </div>
+                        )}
+                        {entry.category && entry.category.name && (
+                          <div className="text-gray-400 text-xs mt-1">
+                            📁 {entry.category.name}
+                          </div>
+                        )}
                       </div>
-                      {entry.description && (
-                        <div className="text-gray-300 text-xs mt-2">
-                          {entry.description}
-                        </div>
-                      )}
-                      {entry.category && (
-                        <div className="text-gray-400 text-xs mt-1">
-                          📁 {entry.category.name}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -240,26 +412,73 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
 
       {/* Input */}
       <div className="p-4 border-t border-gray-700/50">
+        {/* Voice Error Display */}
+        {voiceError && (
+          <div className="mb-3 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="text-red-400">⚠️</span>
+                <span className="text-red-300 text-sm">{voiceError}</span>
+              </div>
+              <button
+                onClick={clearError}
+                className="text-red-400 hover:text-red-300 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex space-x-3">
           <div className="flex-1 relative">
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyPress={handleKeyPress}
               placeholder="Ask about your finances..."
               className="w-full bg-gray-800/50 text-white px-4 py-3 rounded-xl border border-gray-700/50 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 placeholder-gray-400"
-              disabled={isLoading}
+              disabled={isLoading || isTranscribing}
             />
-            {isLoading && (
+            {(isLoading || isTranscribing) && (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
               </div>
             )}
           </div>
+
+          {/* Voice Recording Button */}
+          <button
+            onClick={handleVoiceToggle}
+            disabled={isLoading || isTranscribing || isVoiceProcessing}
+            className={`px-4 py-3 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none disabled:cursor-not-allowed ${
+              isRecording
+                ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 animate-pulse"
+                : isVoiceProcessing || isTranscribing
+                ? "bg-gradient-to-r from-gray-600 to-gray-700"
+                : "bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600"
+            } text-white`}
+            title={
+              isRecording
+                ? "Click to stop recording"
+                : isVoiceProcessing || isTranscribing
+                ? "Processing..."
+                : "Click to start voice recording"
+            }
+          >
+            {isRecording ? (
+              <span className="text-lg">🎤</span>
+            ) : isVoiceProcessing || isTranscribing ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+            ) : (
+              <span className="text-lg">🎤</span>
+            )}
+          </button>
+
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || isTranscribing}
             className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none"
           >
             {isLoading ? "..." : "Send"}

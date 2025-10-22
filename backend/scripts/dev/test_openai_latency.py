@@ -32,7 +32,9 @@ class LatencyTester:
     def __init__(self):
         self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.results = []
-        self.reports_dir = Path("latency_reports")
+        # Create reports directory in the dev folder
+        script_dir = Path(__file__).parent
+        self.reports_dir = script_dir / "latency_reports"
         self.reports_dir.mkdir(exist_ok=True)
 
     def generate_test_queries(self) -> Dict[int, str]:

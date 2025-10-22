@@ -1,0 +1,856 @@
+{
+  "queries": [
+    {
+      "id": "read_1",
+      "query": "show my recent expenses",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Basic read - recent expenses"
+    },
+    {
+      "id": "read_2",
+      "query": "list all my transactions",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Basic read - all entries"
+    },
+    {
+      "id": "read_3",
+      "query": "show me my income this year",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with direction and date range"
+    },
+    {
+      "id": "read_4",
+      "query": "what did I spend on food last month?",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with category and date filter"
+    },
+    {
+      "id": "read_5",
+      "query": "show expenses over $100",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with amount filter"
+    },
+    {
+      "id": "read_6",
+      "query": "list my entertainment expenses from January",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with category and specific month"
+    },
+    {
+      "id": "read_7",
+      "query": "show me transactions from last week",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with relative date range"
+    },
+    {
+      "id": "read_8",
+      "query": "what are my most recent 5 purchases?",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with limit specified"
+    },
+    {
+      "id": "read_9",
+      "query": "show my salary payments",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read income with category inference"
+    },
+    {
+      "id": "read_10",
+      "query": "list expenses between $50 and $200",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with range filter"
+    },
+    {
+      "id": "read_11",
+      "query": "show me all shopping transactions this quarter",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with category and quarter timeframe"
+    },
+    {
+      "id": "read_12",
+      "query": "what did I buy yesterday?",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with relative date - yesterday"
+    },
+    {
+      "id": "read_13",
+      "query": "show my transportation expenses",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with specific category"
+    },
+    {
+      "id": "read_14",
+      "query": "list all entries from December 2024",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with specific month and year"
+    },
+    {
+      "id": "read_15",
+      "query": "show me my subscriptions",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Read with category filter - subscriptions"
+    },
+    {
+      "id": "write_1",
+      "query": "spent $20 on coffee",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Basic expense - coffee"
+    },
+    {
+      "id": "write_2",
+      "query": "earned $1000 salary today",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Income with today date"
+    },
+    {
+      "id": "write_3",
+      "query": "bought groceries for $75.50 at Whole Foods",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Detailed expense with merchant"
+    },
+    {
+      "id": "write_4",
+      "query": "paid $150 for utilities on January 15th",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Expense with specific date"
+    },
+    {
+      "id": "write_5",
+      "query": "got paid $2500 yesterday",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Income with relative date"
+    },
+    {
+      "id": "write_6",
+      "query": "spent $12.99 on Netflix subscription",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Subscription expense"
+    },
+    {
+      "id": "write_7",
+      "query": "bought gas for $45",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Transportation expense"
+    },
+    {
+      "id": "write_8",
+      "query": "dinner at restaurant cost $85 last night",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Dining expense with relative time"
+    },
+    {
+      "id": "write_9",
+      "query": "received $500 bonus this week",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Income - bonus"
+    },
+    {
+      "id": "write_10",
+      "query": "bought new shoes for $120 on Monday",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Shopping expense with day of week"
+    },
+    {
+      "id": "write_11",
+      "query": "spent $30 on lunch today at Chipotle",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Food expense with merchant and date"
+    },
+    {
+      "id": "write_12",
+      "query": "paid $1200 rent",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Housing expense"
+    },
+    {
+      "id": "write_13",
+      "query": "got $25 cashback from credit card",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Income - cashback"
+    },
+    {
+      "id": "write_14",
+      "query": "bought coffee yesterday for $5.50",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Small expense with cents"
+    },
+    {
+      "id": "write_15",
+      "query": "spent $200 on groceries at Trader Joe's last Sunday",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Detailed expense with merchant and specific day"
+    },
+    {
+      "id": "aggregate_1",
+      "query": "what's my total spending?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Sum - all expenses"
+    },
+    {
+      "id": "aggregate_2",
+      "query": "how much did I earn this month?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Sum - income with date filter"
+    },
+    {
+      "id": "aggregate_3",
+      "query": "total food expenses in January",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Sum - category and date filter"
+    },
+    {
+      "id": "aggregate_4",
+      "query": "how many transactions did I make?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Count - all entries"
+    },
+    {
+      "id": "aggregate_5",
+      "query": "count my expenses this week",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Count - expenses with date"
+    },
+    {
+      "id": "aggregate_6",
+      "query": "what was my highest expense?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": true,
+      "description": "Max - may include entry details"
+    },
+    {
+      "id": "aggregate_7",
+      "query": "what's the biggest purchase I made last month?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": true,
+      "description": "Max - with date filter"
+    },
+    {
+      "id": "aggregate_8",
+      "query": "lowest expense this year",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": true,
+      "description": "Min - with date filter"
+    },
+    {
+      "id": "aggregate_9",
+      "query": "total income last quarter",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Sum - income with quarter timeframe"
+    },
+    {
+      "id": "aggregate_10",
+      "query": "how many grocery transactions?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Count - category filter"
+    },
+    {
+      "id": "aggregate_11",
+      "query": "what's my average daily spending?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Sum - for average calculation"
+    },
+    {
+      "id": "aggregate_12",
+      "query": "total entertainment spending this month",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Sum - category and date filter"
+    },
+    {
+      "id": "update_1",
+      "messages": [
+        { "role": "user", "content": "show my recent expenses" },
+        { "role": "user", "content": "change the first one to $50" }
+      ],
+      "expected_tool_calls": ["fetch_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: fetch then update amount"
+    },
+    {
+      "id": "update_2",
+      "messages": [
+        { "role": "user", "content": "what was my highest expense?" },
+        {
+          "role": "user",
+          "content": "update its description to 'Holiday shopping'"
+        }
+      ],
+      "expected_tool_calls": ["aggregate_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: aggregate max then update description"
+    },
+    {
+      "id": "update_3",
+      "messages": [
+        { "role": "user", "content": "show my coffee purchases" },
+        {
+          "role": "user",
+          "content": "change the category of the last one to Food & Dining"
+        }
+      ],
+      "expected_tool_calls": ["fetch_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: fetch filtered then update category"
+    },
+    {
+      "id": "update_4",
+      "messages": [
+        { "role": "user", "content": "list my transactions from yesterday" },
+        { "role": "user", "content": "update the second one to $75" }
+      ],
+      "expected_tool_calls": ["fetch_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: date filtered fetch then update"
+    },
+    {
+      "id": "update_5",
+      "messages": [
+        { "role": "user", "content": "show my salary entries" },
+        { "role": "user", "content": "change the most recent one to $3500" }
+      ],
+      "expected_tool_calls": ["fetch_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: income fetch then update amount"
+    },
+    {
+      "id": "update_6",
+      "messages": [
+        { "role": "user", "content": "what are my grocery expenses?" },
+        {
+          "role": "user",
+          "content": "update the first entry date to last Monday"
+        }
+      ],
+      "expected_tool_calls": ["fetch_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: category fetch then update date"
+    },
+    {
+      "id": "update_7",
+      "messages": [
+        { "role": "user", "content": "show expenses over $100" },
+        {
+          "role": "user",
+          "content": "change the description of the highest one to 'Large purchase'"
+        }
+      ],
+      "expected_tool_calls": ["fetch_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: filtered fetch then update description"
+    },
+    {
+      "id": "update_8",
+      "messages": [
+        { "role": "user", "content": "list my entertainment expenses" },
+        {
+          "role": "user",
+          "content": "update the first one's amount to $25 and category to Shopping"
+        }
+      ],
+      "expected_tool_calls": ["fetch_entries", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Multi-message: fetch then update multiple fields"
+    },
+    {
+      "id": "edge_1",
+      "query": "money stuff",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Ambiguous query"
+    },
+    {
+      "id": "edge_2",
+      "query": "asdfghjkl qwerty 123456",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Gibberish input"
+    },
+    {
+      "id": "edge_3",
+      "query": "",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Empty string"
+    },
+    {
+      "id": "edge_4",
+      "query": "hello",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Greeting - should respond conversationally"
+    },
+    {
+      "id": "edge_5",
+      "query": "help",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Help request - should explain capabilities"
+    },
+    {
+      "id": "edge_6",
+      "query": "what can you do?",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Capability question"
+    },
+    {
+      "id": "edge_7",
+      "query": "spent $-50 on coffee",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": false,
+      "description": "Negative amount - should fail validation"
+    },
+    {
+      "id": "edge_8",
+      "query": "bought something",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Missing amount - should ask for clarification"
+    },
+    {
+      "id": "edge_9",
+      "query": "spent money",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Vague write attempt - should ask for details"
+    },
+    {
+      "id": "edge_10",
+      "query": "delete all my transactions",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Unsupported operation - should explain limitation"
+    },
+    {
+      "id": "edge_incomplete_1",
+      "query": "record for me my chicken rice spending",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Ambiguous - unclear if read or write, missing amount if write"
+    },
+    {
+      "id": "edge_incomplete_2",
+      "query": "spent on groceries",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing amount"
+    },
+    {
+      "id": "edge_incomplete_3",
+      "query": "bought something yesterday",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing amount and unclear category"
+    },
+    {
+      "id": "edge_incomplete_4",
+      "query": "add expense",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing all details"
+    },
+    {
+      "id": "edge_incomplete_5",
+      "query": "track my coffee",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Ambiguous - could be read or write, missing amount if write"
+    },
+    {
+      "id": "edge_incomplete_6",
+      "query": "I bought lunch",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing amount"
+    },
+    {
+      "id": "edge_incomplete_7",
+      "query": "paid for gas",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing amount"
+    },
+    {
+      "id": "edge_incomplete_8",
+      "query": "record my subscription",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing amount and which subscription"
+    },
+    {
+      "id": "edge_incomplete_9",
+      "query": "got some money today",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete income - missing amount"
+    },
+    {
+      "id": "edge_incomplete_10",
+      "query": "add my purchase from the store",
+      "expected_tool_calls": [],
+      "expected_has_entries": false,
+      "description": "Incomplete write - missing amount and category"
+    },
+    {
+      "id": "multi_entry_1",
+      "query": "add chicken rice 5 dollars for me today and yesterday I ate steak for 10 dollars",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 2 expenses on different dates"
+    },
+    {
+      "id": "multi_entry_2",
+      "query": "I spent $20 on coffee and $30 on lunch today",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 2 expenses same day"
+    },
+    {
+      "id": "multi_entry_3",
+      "query": "earned $1000 salary and got $50 cashback today",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 2 income entries same day"
+    },
+    {
+      "id": "multi_entry_4",
+      "query": "bought groceries for $80 on Monday and paid $45 for gas on Tuesday",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 2 expenses on specific days"
+    },
+    {
+      "id": "multi_entry_5",
+      "query": "I spent $50 on dinner, $20 on movie tickets, and $15 on parking",
+      "expected_tool_calls": ["create_entry", "create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 3 expenses at once"
+    },
+    {
+      "id": "multi_entry_6",
+      "query": "yesterday spent $100 on shopping and today earned $2000 salary",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - mix of expense and income"
+    },
+    {
+      "id": "multi_entry_7",
+      "query": "paid $12.99 for Netflix, $9.99 for Spotify, and $14.99 for Amazon Prime this month",
+      "expected_tool_calls": ["create_entry", "create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 3 subscription payments"
+    },
+    {
+      "id": "multi_entry_8",
+      "query": "bought breakfast for $8 and lunch for $15 yesterday",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 2 food expenses same date"
+    },
+    {
+      "id": "multi_entry_9",
+      "query": "received $3000 salary on the 1st and $500 bonus on the 15th",
+      "expected_tool_calls": ["create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - 2 income entries on specific dates"
+    },
+    {
+      "id": "multi_entry_10",
+      "query": "spent $25 on coffee today, $30 on lunch, and got paid $100 freelance work",
+      "expected_tool_calls": ["create_entry", "create_entry", "create_entry"],
+      "expected_has_entries": true,
+      "description": "Multiple entries - mix of 2 expenses and 1 income"
+    },
+    {
+      "id": "category_classification_1",
+      "query": "spent $50 at the doctor",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Health & Fitness (Expense)",
+      "description": "Category classification - doctor visit to Health & Fitness"
+    },
+    {
+      "id": "category_classification_2",
+      "query": "paid $1200 for rent this month",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Housing (Expense)",
+      "description": "Category classification - rent to Housing"
+    },
+    {
+      "id": "category_classification_3",
+      "query": "bought a textbook for $80",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Education (Expense)",
+      "description": "Category classification - textbook to Education"
+    },
+    {
+      "id": "category_classification_4",
+      "query": "got a tax refund of $500",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Refunds (Income)",
+      "description": "Category classification - refund to Refunds income"
+    },
+    {
+      "id": "category_classification_5",
+      "query": "spent $25 on something random",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Miscellaneous (Expense)",
+      "description": "Category classification - vague item to Miscellaneous"
+    },
+    {
+      "id": "category_classification_6",
+      "query": "paid $30 for Uber ride",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Transportation (Expense)",
+      "description": "Category classification - Uber to Transportation"
+    },
+    {
+      "id": "category_classification_7",
+      "query": "bought concert tickets for $150",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Entertainment (Expense)",
+      "description": "Category classification - concert to Entertainment"
+    },
+    {
+      "id": "category_classification_8",
+      "query": "paid $200 for car insurance",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Insurance (Expense)",
+      "description": "Category classification - insurance to Insurance"
+    },
+    {
+      "id": "category_classification_9",
+      "query": "booked flight for $500",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Travel (Expense)",
+      "description": "Category classification - flight to Travel"
+    },
+    {
+      "id": "category_classification_10",
+      "query": "bought new shoes for $120",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Shopping (Expense)",
+      "description": "Category classification - shoes to Shopping"
+    },
+    {
+      "id": "category_classification_11",
+      "query": "received birthday gift money $100",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Gifts (Income)",
+      "description": "Category classification - birthday money to Gifts income"
+    },
+    {
+      "id": "category_classification_12",
+      "query": "earned $2500 monthly salary",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Salary (Income)",
+      "description": "Category classification - salary to Salary income"
+    },
+    {
+      "id": "category_classification_13",
+      "query": "got paid $800 for freelance project",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Freelance (Income)",
+      "description": "Category classification - freelance work to Freelance income"
+    },
+    {
+      "id": "category_classification_14",
+      "query": "received $50 dividend from stocks",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Investment (Income)",
+      "description": "Category classification - dividends to Investment income"
+    },
+    {
+      "id": "category_classification_15",
+      "query": "spent $45 on gym membership",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Health & Fitness (Expense)",
+      "description": "Category classification - gym to Health & Fitness"
+    },
+    {
+      "id": "category_classification_16",
+      "query": "paid $80 for utility bills",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Housing (Expense)",
+      "description": "Category classification - utilities to Housing"
+    },
+    {
+      "id": "category_classification_17",
+      "query": "spent $15 on pizza delivery",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Food & Dining (Expense)",
+      "description": "Category classification - pizza to Food & Dining"
+    },
+    {
+      "id": "category_classification_18",
+      "query": "paid $100 for online course",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Education (Expense)",
+      "description": "Category classification - online course to Education"
+    },
+    {
+      "id": "category_classification_19",
+      "query": "spent $300 on hotel stay",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Travel (Expense)",
+      "description": "Category classification - hotel to Travel"
+    },
+    {
+      "id": "category_classification_20",
+      "query": "earned $200 from side hustle",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Other Income (Income)",
+      "description": "Category classification - side hustle to Other Income"
+    },
+    {
+      "id": "category_ambiguous_1",
+      "query": "spent $50 on stuff",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Miscellaneous (Expense)",
+      "description": "Ambiguous category - should default to Miscellaneous"
+    },
+    {
+      "id": "category_ambiguous_2",
+      "query": "paid $30 for something I can't remember",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Miscellaneous (Expense)",
+      "description": "Ambiguous category - should default to Miscellaneous"
+    },
+    {
+      "id": "category_explicit_wrong",
+      "query": "spent $40 on coffee in the Electronics category",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "expected_category": "Food & Dining (Expense)",
+      "description": "User specifies non-existent category - should use best match (Food & Dining) or ask for clarification"
+    },
+    {
+      "id": "conversation_1",
+      "messages": [
+        { "role": "user", "content": "show my expenses" },
+        { "role": "user", "content": "what's the total?" },
+        { "role": "user", "content": "which one is the highest?" }
+      ],
+      "expected_tool_calls": [
+        "fetch_entries",
+        "aggregate_entries",
+        "aggregate_entries"
+      ],
+      "expected_has_entries": true,
+      "description": "Three-turn conversation: fetch, sum, max"
+    },
+    {
+      "id": "conversation_2",
+      "messages": [
+        { "role": "user", "content": "I spent $100 on groceries" },
+        { "role": "user", "content": "actually, make that $120" },
+        {
+          "role": "user",
+          "content": "and change the category to Food & Dining"
+        }
+      ],
+      "expected_tool_calls": ["create_entry", "update_entry", "update_entry"],
+      "expected_has_entries": true,
+      "description": "Three-turn: create then multiple updates"
+    },
+    {
+      "id": "conversation_3",
+      "messages": [
+        { "role": "user", "content": "what's my total spending this month?" },
+        { "role": "user", "content": "show me the breakdown by category" }
+      ],
+      "expected_tool_calls": ["aggregate_entries", "fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Two-turn: aggregate then detailed fetch"
+    },
+    {
+      "id": "conversation_4",
+      "messages": [
+        { "role": "user", "content": "list my income" },
+        { "role": "user", "content": "how much total?" },
+        { "role": "user", "content": "add a new income of $500 bonus today" }
+      ],
+      "expected_tool_calls": [
+        "fetch_entries",
+        "aggregate_entries",
+        "create_entry"
+      ],
+      "expected_has_entries": true,
+      "description": "Three-turn: fetch, sum, create"
+    },
+    {
+      "id": "conversation_5",
+      "messages": [
+        { "role": "user", "content": "show expenses over $50" },
+        { "role": "user", "content": "update the first one to $60" },
+        { "role": "user", "content": "now show me the new total" }
+      ],
+      "expected_tool_calls": [
+        "fetch_entries",
+        "update_entry",
+        "aggregate_entries"
+      ],
+      "expected_has_entries": true,
+      "description": "Three-turn: fetch, update, aggregate"
+    }
+  ]
+}

@@ -10,23 +10,42 @@ import os
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # Database Configuration
-    supabase_url: str
-    supabase_key: str
-    supabase_service_role_key: str
+    # Environment Configuration
+    environment: str = "development"
+
+    # Production Database Configuration
+    supabase_url_prod: str
+    supabase_key_prod: str
+    supabase_service_role_key_prod: str
+
+    # Development Database Configuration
+    supabase_url_dev: str
+    supabase_key_dev: str
+    supabase_service_role_key_dev: str
 
     # LLM Configuration
     openai_api_key: str
+    nlp_service_version: Optional[str] = "v3"  # NLP service version
 
     # Optional Services
     langfuse_public_key: Optional[str] = None
     langfuse_secret_key: Optional[str] = None
     langfuse_host: str = "https://cloud.langfuse.com"
 
+    # Redis Configuration
+    redis_url: Optional[str] = None  # Railway auto-injects REDIS_URL in production
+    redis_password: Optional[str] = None
+    redis_db: int = 0
+    redis_max_connections: int = 10
+    conversation_ttl: int = 3600  # 1 hour
+    conversation_history_limit: int = 10  # Last 10 messages
+
+    # Testing Configuration
+    test_user_id: Optional[str] = None  # UUID for test user in development/testing
+
     # Application Settings
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
     debug: bool = False
-    environment: str = "development"
 
     # API Settings
     api_title: str = "Expense Tracker MVP"
@@ -34,7 +53,9 @@ class Settings(BaseSettings):
     api_version: str = "1.0.0"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -55,9 +76,25 @@ class Settings(BaseSettings):
         return self.environment.lower() in ("production", "prod")
 
     @property
-    def is_testing(self) -> bool:
-        """Check if running in testing mode."""
-        return self.environment.lower() in ("testing", "test")
+    def supabase_url(self) -> str:
+        """Get the appropriate Supabase URL based on environment."""
+        if self.is_production:
+            return self.supabase_url_prod
+        return self.supabase_url_dev
+
+    @property
+    def supabase_key(self) -> str:
+        """Get the appropriate Supabase key based on environment."""
+        if self.is_production:
+            return self.supabase_key_prod
+        return self.supabase_key_dev
+
+    @property
+    def supabase_service_role_key(self) -> str:
+        """Get the appropriate Supabase service role key based on environment."""
+        if self.is_production:
+            return self.supabase_service_role_key_prod
+        return self.supabase_service_role_key_dev
 
 
 # Global settings instance

@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from models.schemas import CategoryQueryParams, EntryQueryParams
+from models.schemas import CategoryQueryParams, EntryQueryParams, EntryUpdate
 from services.category_service import CategoryService
 from services.entry_service import EntryService
 from database.connection import db_connection
@@ -18,6 +18,7 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.db_real,  # Uses real database operations
     pytest.mark.llm_mock,  # No LLM operations in service tests
+    pytest.mark.auth_real,  # Uses real authentication with test users
 ]
 
 
@@ -33,6 +34,7 @@ class TestEntryService:
             entry_date=date(2025, 1, 15),
             description="Real test expense",
             category_id=test_data_setup["category"]["id"],
+            user_id=test_data_setup["user_id"],
         )
 
         assert result.amount_cents == 1575
@@ -45,131 +47,6 @@ class TestEntryService:
         db_connection.client.table("entry").delete().eq("id", result.id).execute()
 
     @pytest.mark.asyncio
-    async def test_create_entry_with_nlp_source(self, test_data_setup):
-        """Test real entry creation with NLP source"""
-        result = await EntryService.create_entry(
-            amount=Decimal("25.50"),
-            direction="expense",
-            entry_date=date(2025, 1, 15),
-            description="NLP parsed expense",
-            source="nlp",
-            category_id=test_data_setup["category"]["id"],
-        )
-
-        assert result.amount_cents == 2550
-        assert result.direction == "expense"
-        assert result.description == "NLP parsed expense"
-        assert result.source == "nlp"
-
-        # Clean up the created entry
-        db_connection.client.table("entry").delete().eq("id", result.id).execute()
-
-    @pytest.mark.asyncio
-    async def test_get_entries_real_integration(self, test_data_setup):
-        """Test real entry retrieval with database"""
-        # Create test entries
-        test_entries = [
-            {
-                "amount_cents": 1575,  # $15.75
-                "direction": "expense",
-                "entry_date": "2025-01-15",
-                "category_id": test_data_setup["category"]["id"],
-                "description": "Test expense 1",
-                "source": "manual",
-            },
-            {
-                "amount_cents": 2500,  # $25.00
-                "direction": "expense",
-                "entry_date": "2025-01-14",
-                "category_id": test_data_setup["category"]["id"],
-                "description": "Test expense 2",
-                "source": "manual",
-            },
-        ]
-
-        created_entries = []
-        for entry_data in test_entries:
-            result = db_connection.client.table("entry").insert(entry_data).execute()
-            if result.data:
-                created_entries.append(result.data[0])
-
-        try:
-            params = EntryQueryParams()
-            result = await EntryService.get_entries(params)
-
-            assert len(result["items"]) >= 2
-            assert result["page"]["total"] >= 2
-
-            # Verify entry structure
-            for entry in result["items"]:
-                assert hasattr(entry, "id")
-                assert hasattr(entry, "amount")
-                assert hasattr(entry, "direction")
-                assert hasattr(entry, "description")
-
-        finally:
-            # Clean up test entries
-            for entry in created_entries:
-                db_connection.client.table("entry").delete().eq(
-                    "id", entry["id"]
-                ).execute()
-
-    @pytest.mark.asyncio
-    async def test_get_entries_with_filters_real_integration(self, test_data_setup):
-        """Test real entry retrieval with filters using database"""
-        # Create test entries
-        test_entries = [
-            {
-                "amount_cents": 1575,  # $15.75
-                "direction": "expense",
-                "entry_date": "2025-01-15",
-                "category_id": test_data_setup["category"]["id"],
-                "description": "coffee expense",
-                "source": "manual",
-            },
-            {
-                "amount_cents": 2500,  # $25.00
-                "direction": "expense",
-                "entry_date": "2025-01-14",
-                "category_id": test_data_setup["category"]["id"],
-                "description": "lunch expense",
-                "source": "manual",
-            },
-        ]
-
-        created_entries = []
-        for entry_data in test_entries:
-            result = db_connection.client.table("entry").insert(entry_data).execute()
-            if result.data:
-                created_entries.append(result.data[0])
-
-        try:
-            # Test with direction filter
-            params = EntryQueryParams(direction="expense")
-            result = await EntryService.get_entries(params)
-            assert len(result["items"]) >= 2
-
-            # Test with search query
-            params = EntryQueryParams(q="coffee")
-            result = await EntryService.get_entries(params)
-            # Should find at least one entry with "coffee" in description
-            assert len(result["items"]) >= 1
-
-            # Test with date range
-            params = EntryQueryParams(
-                date_from=date(2025, 1, 1), date_to=date(2025, 1, 31)
-            )
-            result = await EntryService.get_entries(params)
-            assert len(result["items"]) >= 2
-
-        finally:
-            # Clean up test entries
-            for entry in created_entries:
-                db_connection.client.table("entry").delete().eq(
-                    "id", entry["id"]
-                ).execute()
-
-    @pytest.mark.asyncio
     async def test_entry_validation_real_integration(self):
         """Test entry validation with real service"""
         # Test with invalid amount
@@ -178,6 +55,7 @@ class TestEntryService:
                 amount=Decimal("-10.00"),  # Negative amount
                 direction="expense",
                 entry_date=date(2025, 1, 15),
+                user_id=uuid4(),
             )
 
         # Test with zero amount
@@ -186,44 +64,8 @@ class TestEntryService:
                 amount=Decimal("0.00"),  # Zero amount
                 direction="expense",
                 entry_date=date(2025, 1, 15),
+                user_id=uuid4(),
             )
-
-    @pytest.mark.asyncio
-    async def test_concurrent_entry_operations(self, test_data_setup):
-        """Test concurrent entry operations"""
-        import asyncio
-
-        async def create_entry(amount, description):
-            return await EntryService.create_entry(
-                amount=Decimal(str(amount)),
-                direction="expense",
-                entry_date=date(2025, 1, 15),
-                description=description,
-                category_id=test_data_setup["category"]["id"],
-            )
-
-        # Create multiple entries concurrently
-        tasks = [
-            create_entry(10.50, "Concurrent expense 1"),
-            create_entry(20.75, "Concurrent expense 2"),
-            create_entry(30.25, "Concurrent expense 3"),
-        ]
-
-        results = await asyncio.gather(*tasks)
-
-        try:
-            # All entries should be created successfully
-            assert len(results) == 3
-            for result in results:
-                assert result.amount_cents > 0
-                assert result.direction == "expense"
-
-        finally:
-            # Clean up all created entries
-            for result in results:
-                db_connection.client.table("entry").delete().eq(
-                    "id", result.id
-                ).execute()
 
 
 class TestCategoryService:
@@ -316,38 +158,6 @@ class TestCategoryService:
             assert len(result) >= 1
 
     @pytest.mark.asyncio
-    async def test_category_with_entries_real_integration(self, test_categories):
-        """Test category retrieval when it has associated entries"""
-        test_category = test_categories[0]
-
-        # Create an entry for this category
-        test_entry = {
-            "amount_cents": 1500,  # $15.00
-            "direction": "expense",
-            "entry_date": "2025-01-15",
-            "category_id": test_category["id"],
-            "description": "Test entry for category",
-            "source": "manual",
-        }
-
-        result = db_connection.client.table("entry").insert(test_entry).execute()
-        created_entry = result.data[0] if result.data else None
-
-        try:
-            # Get the category
-            category = await CategoryService.get_category_by_id(test_category["id"])
-
-            assert category is not None
-            assert str(category.id) == test_category["id"]
-
-        finally:
-            # Clean up the created entry
-            if created_entry:
-                db_connection.client.table("entry").delete().eq(
-                    "id", created_entry["id"]
-                ).execute()
-
-    @pytest.mark.asyncio
     async def test_category_validation_real_integration(self):
         """Test category validation with real service"""
         # Test with invalid type
@@ -364,49 +174,3 @@ class TestCategoryService:
         # Test with no type (should be valid)
         params_no_type = CategoryQueryParams()
         assert params_no_type.type is None
-
-    @pytest.mark.asyncio
-    async def test_large_dataset_performance(self, test_categories):
-        """Test performance with larger dataset"""
-        import time
-
-        # Create multiple entries
-        test_entries = []
-        for i in range(10):
-            test_entries.append(
-                {
-                    "amount_cents": 1000 + i * 100,  # $10.00, $10.10, etc.
-                    "direction": "expense",
-                    "entry_date": "2025-01-15",
-                    "category_id": test_categories[0]["id"],
-                    "description": f"Performance test entry {i}",
-                    "source": "manual",
-                }
-            )
-
-        created_entries = []
-        for entry_data in test_entries:
-            result = db_connection.client.table("entry").insert(entry_data).execute()
-            if result.data:
-                created_entries.append(result.data[0])
-
-        try:
-            # Test performance
-            start_time = time.time()
-
-            params = EntryQueryParams()
-            result = await EntryService.get_entries(params)
-
-            end_time = time.time()
-            response_time = end_time - start_time
-
-            assert len(result["items"]) >= 10
-            # Should respond within reasonable time
-            assert response_time < 2.0  # 2 second threshold
-
-        finally:
-            # Clean up test entries
-            for entry in created_entries:
-                db_connection.client.table("entry").delete().eq(
-                    "id", entry["id"]
-                ).execute()

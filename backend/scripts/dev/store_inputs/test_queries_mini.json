@@ -1,0 +1,25 @@
+{
+  "queries": [
+    {
+      "id": "read_basic",
+      "query": "show my recent expenses",
+      "expected_tool_calls": ["fetch_entries"],
+      "expected_has_entries": true,
+      "description": "Basic read operation"
+    },
+    {
+      "id": "write_basic",
+      "query": "record a new expense: spent $20 on coffee",
+      "expected_tool_calls": ["create_entry"],
+      "expected_has_entries": true,
+      "description": "Basic write operation"
+    },
+    {
+      "id": "aggregate_basic",
+      "query": "what's my total spending this month?",
+      "expected_tool_calls": ["aggregate_entries"],
+      "expected_has_entries": false,
+      "description": "Basic aggregation operation"
+    }
+  ]
+}
