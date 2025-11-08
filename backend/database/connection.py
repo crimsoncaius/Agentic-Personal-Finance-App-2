@@ -9,10 +9,7 @@ import httpx
 from supabase import Client, create_client, ClientOptions
 
 # Import configuration
-try:
-    from config.settings import settings
-except ImportError:
-    from backend.config.settings import settings
+from config.settings import settings
 
 
 class DatabaseConnection:

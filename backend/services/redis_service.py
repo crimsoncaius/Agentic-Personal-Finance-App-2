@@ -11,11 +11,8 @@ from uuid import uuid4
 import redis
 from redis.exceptions import RedisError
 
-# Try both import paths to handle running from different directories
-try:
-    from config.settings import settings
-except ImportError:
-    from backend.config.settings import settings
+# Import configuration
+from config.settings import settings
 
 
 class ChatMessage:

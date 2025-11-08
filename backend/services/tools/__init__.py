@@ -9,13 +9,9 @@ from decimal import Decimal
 from typing import Any, Dict, Optional
 from langchain_core.tools import tool
 
-# Try both import paths to handle running from different directories
-try:
-    from database.connection import db_connection
-    from models.query_spec import QuerySpec
-except ImportError:
-    from backend.database.connection import db_connection
-    from backend.models.query_spec import QuerySpec
+# Import paths for running from backend directory
+from database.connection import db_connection
+from models.query_spec import QuerySpec
 
 
 @tool

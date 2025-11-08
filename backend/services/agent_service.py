@@ -16,31 +16,18 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.tools import StructuredTool
 from langfuse.langchain import CallbackHandler
 
-# Try both import paths to handle running from different directories
-try:
-    from config.settings import settings
-    from services.langfuse_service import langfuse_service
-    from services.redis_service import redis_service
-    from services.prompt_manager import PromptManager
-    from database.connection import db_connection
-    from services.tools import (
-        fetch_entries,
-        create_entry,
-        update_entry,
-        aggregate_entries,
-    )
-except ImportError:
-    from backend.config.settings import settings
-    from backend.services.langfuse_service import langfuse_service
-    from backend.services.redis_service import redis_service
-    from backend.services.prompt_manager import PromptManager
-    from backend.database.connection import db_connection
-    from backend.services.tools import (
-        fetch_entries,
-        create_entry,
-        update_entry,
-        aggregate_entries,
-    )
+# Import paths for running from backend directory
+from config.settings import settings
+from services.langfuse_service import langfuse_service
+from services.redis_service import redis_service
+from services.prompt_manager import PromptManager
+from database.connection import db_connection
+from services.tools import (
+    fetch_entries,
+    create_entry,
+    update_entry,
+    aggregate_entries,
+)
 
 
 class AgentService:

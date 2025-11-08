@@ -1,0 +1,34 @@
+{
+  "name": "@finance-app/shared",
+  "version": "1.0.0",
+  "description": "Shared types, services, and utilities for Personal Finance App",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./services/storage": {
+      "import": "./dist/services/storage.js",
+      "types": "./dist/services/storage.d.ts"
+    },
+    "./services/api": {
+      "import": "./dist/services/api.js",
+      "types": "./dist/services/api.d.ts"
+    },
+    "./types/auth": {
+      "import": "./dist/types/auth.js",
+      "types": "./dist/types/auth.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^24.6.0"
+  },
+  "dependencies": {}
+}

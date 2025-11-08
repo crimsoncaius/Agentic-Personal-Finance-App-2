@@ -1,54 +1,65 @@
-import {
+﻿import React, {
   createContext,
   useContext,
   useState,
   useEffect,
   type ReactNode,
 } from "react";
+import * as SecureStore from "expo-secure-store";
+import { MobileStorage } from "../../../shared/src/services/storage";
+import { ApiService } from "../../../shared/src/services/api";
 import type {
   User,
   Session,
   AuthContextType,
-} from "../../../shared/dist/types/auth";
+} from "../../../shared/src/types/auth";
+import { API_BASE_URL } from "../config/api";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const API_BASE_URL = import.meta.env.PROD
-  ? "https://agentic-personal-finance-app-2-production.up.railway.app/api/v1"
-  : "http://localhost:8000/api/v1";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load session from localStorage on mount
+  // Create API service with mobile storage
+  const storage = new MobileStorage(SecureStore);
+  const apiService = new ApiService({
+    baseUrl: API_BASE_URL,
+    storage,
+  });
+
+  // Load session from secure store on mount
   useEffect(() => {
-    const storedSession = localStorage.getItem("session");
-    const storedUser = localStorage.getItem("user");
-
-    if (storedSession && storedUser) {
+    const loadSession = async () => {
       try {
-        const parsedSession: Session = JSON.parse(storedSession);
-        const parsedUser: User = JSON.parse(storedUser);
+        const storedSession = await storage.getItem("session");
+        const storedUser = await storage.getItem("user");
 
-        // Check if token is expired
-        const now = Math.floor(Date.now() / 1000);
-        if (parsedSession.expires_at > now) {
-          setSession(parsedSession);
-          setUser(parsedUser);
-        } else {
-          // Token expired, try to refresh
-          refreshSession(parsedSession.refresh_token);
+        if (storedSession && storedUser) {
+          const parsedSession: Session = JSON.parse(storedSession);
+          const parsedUser: User = JSON.parse(storedUser);
+
+          // Check if token is expired
+          const now = Math.floor(Date.now() / 1000);
+          if (parsedSession.expires_at > now) {
+            setSession(parsedSession);
+            setUser(parsedUser);
+          } else {
+            // Token expired, try to refresh
+            await refreshSession(parsedSession.refresh_token);
+          }
         }
       } catch (error) {
         console.error("Error loading session:", error);
-        localStorage.removeItem("session");
-        localStorage.removeItem("user");
+        await storage.removeItem("session");
+        await storage.removeItem("user");
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
 
-    setIsLoading(false);
+    loadSession();
   }, []);
 
   const refreshSession = async (refreshToken: string) => {
@@ -62,14 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const newSession: Session = await response.json();
         setSession(newSession);
-        localStorage.setItem("session", JSON.stringify(newSession));
+        await storage.setItem("session", JSON.stringify(newSession));
       } else {
         // Refresh failed, clear session
-        logout();
+        await logout();
       }
     } catch (error) {
       console.error("Error refreshing session:", error);
-      logout();
+      await logout();
     }
   };
 
@@ -89,9 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
     setSession(data.session);
 
-    // Store in localStorage
-    localStorage.setItem("user", JSON.stringify(data.user));
-    localStorage.setItem("session", JSON.stringify(data.session));
+    // Store in secure store
+    await storage.setItem("user", JSON.stringify(data.user));
+    await storage.setItem("session", JSON.stringify(data.session));
   };
 
   const register = async (email: string, password: string, name?: string) => {
@@ -110,26 +121,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
     setSession(data.session);
 
-    // Store in localStorage
-    localStorage.setItem("user", JSON.stringify(data.user));
-    localStorage.setItem("session", JSON.stringify(data.session));
+    // Store in secure store
+    await storage.setItem("user", JSON.stringify(data.user));
+    await storage.setItem("session", JSON.stringify(data.session));
   };
 
-  const logout = () => {
+  const logout = async () => {
     // Call logout endpoint if we have a token
     if (session?.access_token) {
-      fetch(`${API_BASE_URL}/auth/logout`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      }).catch(console.error);
+      try {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+      } catch (error) {
+        console.error("Error calling logout endpoint:", error);
+      }
     }
 
     setUser(null);
     setSession(null);
-    localStorage.removeItem("user");
-    localStorage.removeItem("session");
+    await storage.removeItem("user");
+    await storage.removeItem("session");
   };
 
   const getAccessToken = (): string | null => {

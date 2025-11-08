@@ -15,7 +15,7 @@ build/
 dist/
 *.egg-info/
 
-# Node.js (Frontend)
+# Node.js (Frontend & Mobile)
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -24,6 +24,18 @@ yarn-error.log*
 # Build outputs
 frontend/dist/
 frontend/build/
+
+# React Native / Expo
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/ios/
+mobile/android/
+mobile/.expo-shared/
+
+# Shared package
+shared/dist/
+shared/node_modules/
 
 # OS
 .DS_Store
@@ -46,3 +58,4 @@ htmlcov/
 .cursor/
 
 secret.txt
+.vercel

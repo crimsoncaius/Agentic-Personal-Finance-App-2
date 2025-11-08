@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { EntryResponse } from "../types/api";
+import type { EntryResponse } from "@finance-app/shared";
 import { apiService } from "../services/api";
+import { formatAmount, formatDate } from "@finance-app/shared";
 
 interface EntriesTableProps {
   refreshTrigger?: number;
@@ -116,20 +117,6 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
     }
   }, [refreshTrigger]);
 
-  const formatAmount = (amount: number | string, direction: string) => {
-    const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
-    const sign = direction === "expense" ? "-" : "+";
-    return `${sign}$${numAmount.toFixed(2)}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
   const findTodayPage = async () => {
     try {
       // Use local date instead of UTC to match user's timezone
@@ -149,11 +136,11 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
 
         console.log(
           `Checking page ${page}:`,
-          response.items.map((e) => e.entry_date)
+          response.items.map((e: EntryResponse) => e.entry_date)
         );
 
         // Check if any entry is from today
-        const hasTodayEntry = response.items.some((entry) =>
+        const hasTodayEntry = response.items.some((entry: EntryResponse) =>
           entry.entry_date.startsWith(todayLocal)
         );
 
@@ -256,8 +243,9 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
                       );
 
                       // Check if any entry is from today
-                      const hasTodayEntry = response.items.some((entry) =>
-                        entry.entry_date.startsWith(todayLocal)
+                      const hasTodayEntry = response.items.some(
+                        (entry: EntryResponse) =>
+                          entry.entry_date.startsWith(todayLocal)
                       );
 
                       if (hasTodayEntry) {
