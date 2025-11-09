@@ -62,7 +62,7 @@ async def create_entry_structured(
         raise  # Re-raise HTTPExceptions as-is
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -104,7 +104,7 @@ async def get_entries(
         raise  # Re-raise HTTPExceptions as-is
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -129,7 +129,7 @@ async def update_entry(
         raise  # Re-raise HTTPExceptions as-is
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -148,5 +148,5 @@ async def delete_entry(entry_id: UUID, user: dict = Depends(get_current_user)):
 
     except HTTPException:
         raise  # Re-raise HTTPExceptions as-is
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")

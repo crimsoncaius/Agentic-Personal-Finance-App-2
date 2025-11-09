@@ -12,8 +12,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
-import openai
+from typing import Dict, Any
 from openai import AsyncOpenAI
 import statistics
 from dotenv import load_dotenv

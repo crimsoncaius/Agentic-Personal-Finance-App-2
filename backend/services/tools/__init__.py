@@ -5,12 +5,11 @@ Provides tools for fetching, creating, and updating financial entries
 
 import json
 from datetime import datetime
-from decimal import Decimal
-from typing import Any, Dict, Optional
-from langchain_core.tools import tool
+from typing import Optional
 
 # Import paths for running from backend directory
 from database.connection import db_connection
+from langchain_core.tools import tool
 from models.query_spec import QuerySpec
 
 
@@ -620,7 +619,7 @@ def aggregate_entries(
                 f"Lowest: ${agg_data['value']:.2f} - {entry.get('description', 'N/A')} on {entry.get('entry_date', 'N/A')}"
             )
         else:
-            response["message"] = f"No entries found matching criteria"
+            response["message"] = "No entries found matching criteria"
 
         return json.dumps(response)
 

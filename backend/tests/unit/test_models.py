@@ -7,6 +7,17 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from models.schemas import (
+    CategoryQueryParams,
+    CategoryResponse,
+    ChatRequest,
+    EntryCreateStructured,
+    EntryQueryParams,
+    EntryResponse,
+    EntryUpdate,
+    cents_to_dollars,
+    dollars_to_cents,
+)
 
 pytestmark = [
     pytest.mark.unit,
@@ -14,19 +25,6 @@ pytestmark = [
     pytest.mark.db_mock,  # No database operations in model tests
     pytest.mark.llm_mock,  # No LLM operations in model tests
 ]
-
-from models.schemas import (
-    CategoryQueryParams,
-    CategoryResponse,
-    ChatRequest,
-    EntryCreateStructured,
-    EntryListResponse,
-    EntryQueryParams,
-    EntryResponse,
-    EntryUpdate,
-    cents_to_dollars,
-    dollars_to_cents,
-)
 
 
 class TestEntryModels:

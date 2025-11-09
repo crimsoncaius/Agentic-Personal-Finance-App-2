@@ -2,9 +2,9 @@
 Entry service for database operations
 """
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 from uuid import UUID
 
 from database.connection import db_connection

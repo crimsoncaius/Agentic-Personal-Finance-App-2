@@ -8,7 +8,7 @@ from decimal import Decimal
 
 # Enums matching database schema
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator

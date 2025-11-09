@@ -140,7 +140,7 @@ async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
         await AuthService.logout_user(credentials.credentials)
         return {"message": "Logout successful"}
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Logout failed"
         )
@@ -161,7 +161,7 @@ async def refresh_token(request: RefreshTokenRequest):
         result = await AuthService.refresh_session(request.refresh_token)
         return SessionResponse(**result["session"])
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
@@ -196,7 +196,7 @@ async def verify_token(current_user: dict = Depends(get_current_user)):
             email_confirmed=True,  # If we got here, the token is valid
         )
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

@@ -11,7 +11,7 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict
 
 # Try to import Langfuse SDK for trace fetching
 try:
@@ -57,11 +57,9 @@ sys.path.insert(0, str(backend_dir))
 # Try both import paths to handle running from different directories
 try:
     from services.agent_service import AgentService
-    from config.settings import settings
 except ImportError:
     # If running from project root, try backend.services
     from backend.services.agent_service import AgentService
-    from backend.config.settings import settings
 
 
 class SimpleQueryRunner:
@@ -99,7 +97,7 @@ class SimpleQueryRunner:
                         secret_key=langfuse_secret_key,
                         host=langfuse_host,
                     )
-                    print(f"Langfuse trace fetcher: Available")
+                    print("Langfuse trace fetcher: Available")
                 else:
                     print("Warning: Langfuse credentials not found")
                     self.langfuse_client = None
@@ -109,7 +107,7 @@ class SimpleQueryRunner:
         else:
             self.langfuse_client = None
 
-        print(f"Initialized Simple Query Runner")
+        print("Initialized Simple Query Runner")
         print(f"Session ID: {self.session_id}")
         print(f"Langfuse enabled: {self.nlp_service.langfuse.enabled}")
 
@@ -448,7 +446,7 @@ class SimpleQueryRunner:
         print("View traces at: https://cloud.langfuse.com")
 
         if metadata["failed_queries"] > 0:
-            print(f"\nFailed Queries:")
+            print("\nFailed Queries:")
             for result in summary["results"]:
                 if not result["success"]:
                     print(f"  - {result['query_id']}: {result['error']}")

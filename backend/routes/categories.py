@@ -22,5 +22,5 @@ async def get_categories(
         categories = await CategoryService.get_categories(params)
         return categories
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")

@@ -81,13 +81,17 @@ async def wipe_data(force: bool = False):
     print("\n[1/2] Deleting all entries...")
     try:
         # Delete entries for all users except system user
-        result = (
+        response = (
             db_connection.service_client.table("entry")
             .delete()
             .neq("user_id", SYSTEM_USER_ID)
             .execute()
         )
-        print(f"  ✓ Deleted entries")
+        deleted_count = getattr(response, "count", None)
+        if deleted_count is not None:
+            print(f"  ✓ Deleted entries (count={deleted_count})")
+        else:
+            print("  ✓ Deleted entries")
     except Exception as e:
         print(f"  ✗ Error deleting entries: {e}")
 

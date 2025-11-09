@@ -98,7 +98,7 @@ class DatabaseConnection:
         """Test database connection"""
         try:
             # Simple query to test connection
-            result = self.client.table("category").select("id").limit(1).execute()
+            self.client.table("category").select("id").limit(1).execute()
             return True
         except Exception as e:
             print(f"Database connection test failed: {e}")

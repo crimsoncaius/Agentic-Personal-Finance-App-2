@@ -516,7 +516,7 @@ class LangfuseTracerV3:
                 )
                 duration = (end - start).total_seconds()
                 trace_summary["duration_seconds"] = duration
-            except:
+            except (ValueError, TypeError):
                 pass
 
         print(

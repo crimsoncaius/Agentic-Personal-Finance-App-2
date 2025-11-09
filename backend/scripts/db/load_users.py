@@ -10,7 +10,6 @@ import json
 import sys
 import argparse
 from pathlib import Path
-from typing import Dict, List
 
 # Fix Windows console encoding for emoji support
 if sys.platform == "win32":
@@ -86,13 +85,13 @@ async def load_users(json_file: str):
 
         # Validate required fields
         if not all([user_id, email, password]):
-            print(f"  ✗ Missing required fields (id, email, password)")
+            print("  ✗ Missing required fields (id, email, password)")
             failed += 1
             continue
 
         # Check if user is system user
         if user_id == SYSTEM_USER_ID:
-            print(f"  ⚠️  Skipped: Cannot create system user")
+            print("  ⚠️  Skipped: Cannot create system user")
             skipped += 1
             continue
 
@@ -124,10 +123,10 @@ async def load_users(json_file: str):
                         print(
                             f"  ⚠️  Warning: Created ID ({actual_user_id}) differs from JSON ID ({user_id})"
                         )
-                        print(f"      Update your test_users.json with the actual ID!")
+                        print("      Update your test_users.json with the actual ID!")
                     created += 1
                 else:
-                    print(f"  ✗ Failed: No user ID returned")
+                    print("  ✗ Failed: No user ID returned")
                     failed += 1
 
             except Exception as auth_error:
@@ -136,7 +135,7 @@ async def load_users(json_file: str):
                     "already registered" in error_msg.lower()
                     or "duplicate" in error_msg.lower()
                 ):
-                    print(f"  ⚠️  Skipped: User already exists")
+                    print("  ⚠️  Skipped: User already exists")
                     # Try to get the existing user ID
                     try:
                         list_response = auth_client.list_users()
@@ -144,7 +143,7 @@ async def load_users(json_file: str):
                             if existing_user.email == email:
                                 print(f"      Existing User ID: {existing_user.id}")
                                 if existing_user.id != user_id:
-                                    print(f"      Update JSON with this ID!")
+                                    print("      Update JSON with this ID!")
                                 break
                     except Exception as list_error:
                         print(f"      (Could not retrieve user ID: {list_error})")
@@ -175,11 +174,11 @@ async def load_users(json_file: str):
         print("\n✅ Load users complete!")
         if created > 0:
             print("\nNext steps:")
-            print(f"  1. Update test_users.json with actual user IDs (if they differ)")
-            print(f"  2. Run: python scripts\\db\\load_entries.py")
+            print("  1. Update test_users.json with actual user IDs (if they differ)")
+            print("  2. Run: python scripts\\db\\load_entries.py")
         else:
             print("\nNext step:")
-            print(f"  python scripts\\db\\load_entries.py")
+            print("  python scripts\\db\\load_entries.py")
     elif failed > 0:
         print(f"\n⚠️  {failed} user(s) failed to create")
 

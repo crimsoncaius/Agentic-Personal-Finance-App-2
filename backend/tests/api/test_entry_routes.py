@@ -4,11 +4,8 @@ Tests for entry API routes with mocked authentication
 
 import pytest
 import pytest_asyncio
-from datetime import date
-from decimal import Decimal
 from uuid import uuid4
 from fastapi.testclient import TestClient
-from fastapi import Depends
 
 from main import app
 from database.connection import db_connection
@@ -212,7 +209,7 @@ class TestEntryRoutes:
                     db_connection.client.table("entry").delete().eq(
                         "id", created_entry["id"]
                     ).execute()
-                except:
+                except Exception:
                     pass  # Already deleted
 
     def test_delete_entry_not_found(self, client_with_mock_auth):

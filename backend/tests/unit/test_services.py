@@ -3,12 +3,11 @@ Tests for service layer - Tests with actual database operations
 """
 
 import pytest
-import pytest_asyncio
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from models.schemas import CategoryQueryParams, EntryQueryParams, EntryUpdate
+from models.schemas import CategoryQueryParams
 from services.category_service import CategoryService
 from services.entry_service import EntryService
 from database.connection import db_connection

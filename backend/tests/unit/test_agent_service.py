@@ -2,7 +2,6 @@
 Unit tests for AgentService with mocked LLM and DB.
 """
 
-import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4

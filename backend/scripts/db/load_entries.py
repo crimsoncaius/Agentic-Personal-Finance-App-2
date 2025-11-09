@@ -10,8 +10,7 @@ import json
 import random
 import sys
 import argparse
-from datetime import date, datetime, timedelta
-from decimal import Decimal
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -190,24 +189,6 @@ class EntryGenerator:
         """Generate realistic income entries"""
         entries = []
 
-        income_patterns = {
-            "Salary (Income)": {
-                "amount_range": (3000, 8000),
-                "day_of_month": 1,  # First of month
-                "description": "Monthly salary",
-            },
-            "Freelance (Income)": {
-                "amount_range": (500, 3000),
-                "frequency": 0.3,  # 30% chance per month
-                "description": "Freelance work",
-            },
-            "Other Income (Income)": {
-                "amount_range": (50, 500),
-                "frequency": 0.2,  # 20% chance per month
-                "description": "Other income",
-            },
-        }
-
         # Generate monthly salary
         current_month = self.start_date.replace(day=1)
         while current_month <= self.end_date:
@@ -283,7 +264,7 @@ class EntryGenerator:
             for i in range(0, len(all_entries), batch_size):
                 batch = all_entries[i : i + batch_size]
                 try:
-                    result = (
+                    (
                         db_connection.service_client.table("entry")
                         .insert(batch)
                         .execute()
@@ -356,7 +337,7 @@ async def load_entries(json_file: str):
         print("\n❌ Error: 'users_to_populate' must contain at least one user ID")
         return
 
-    print(f"\n📋 Configuration:")
+    print("\n📋 Configuration:")
     print(f"   Months back: {months_back}")
     print(f"   Users to populate: {len(users_to_populate)}")
 

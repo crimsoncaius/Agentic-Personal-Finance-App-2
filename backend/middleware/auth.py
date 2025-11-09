@@ -9,7 +9,6 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client
 
-from config.settings import settings
 from database.connection import db_connection
 
 # Security scheme for bearer token
@@ -64,7 +63,7 @@ class AuthMiddleware:
 
             return user_info
 
-        except Exception as e:
+        except Exception:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",

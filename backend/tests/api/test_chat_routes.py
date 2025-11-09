@@ -9,7 +9,6 @@ from unittest.mock import patch, AsyncMock, MagicMock
 
 from main import app
 from middleware.auth import get_current_user_id
-from database.connection import db_connection
 
 pytestmark = [
     pytest.mark.integration,
