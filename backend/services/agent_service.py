@@ -3,6 +3,7 @@ Agent Service - LangGraph ReAct Agent Implementation
 Uses prebuilt create_react_agent with tools for database operations
 """
 
+import hashlib
 import json
 import time
 from datetime import date
@@ -19,7 +20,7 @@ from langfuse.langchain import CallbackHandler
 # Import paths for running from backend directory
 from config.settings import settings
 from services.langfuse_service import langfuse_service
-from services.redis_service import redis_service
+from services.redis_service import redis_service, ToolObservation
 from services.prompt_manager import PromptManager
 from database.connection import db_connection
 from services.tools import (
@@ -98,9 +99,8 @@ class AgentService:
                 start_time = time.time()
 
                 # Retrieve conversation history from Redis
-                conversation_history = await self.redis.get_conversation_history(
-                    chat_id
-                )
+                conversation_history = await self.redis.get_conversation_history(chat_id)
+                tool_observations = await self.redis.get_tool_observations(chat_id)
 
                 # Create the agent with trace info for LLM tracking
                 agent = self._create_agent(
@@ -113,6 +113,16 @@ class AgentService:
                 # Add conversation history
                 for msg in conversation_history:
                     messages.append({"role": msg.role, "content": msg.content})
+
+                # Add trusted tool context
+                private_context = self._render_private_context(tool_observations)
+                if private_context:
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": private_context,
+                        }
+                    )
 
                 # Add current user message
                 messages.append({"role": "user", "content": text})
@@ -141,6 +151,9 @@ class AgentService:
                         tool_output=tool_call.get("output"),
                         trace_id=trace_id,
                     )
+
+                # Persist trusted tool observations for future turns
+                await self._persist_tool_observations(chat_id, tool_calls)
 
                 # Flush to ensure observations are saved
                 self.langfuse.flush()
@@ -396,6 +409,131 @@ class AgentService:
         except Exception:
             pass
         return None
+
+    async def _persist_tool_observations(
+        self, chat_id: str, tool_calls: List[Dict[str, Any]]
+    ) -> None:
+        """Persist tool outputs to Redis for trusted reuse."""
+        if not tool_calls:
+            return
+
+        for tool_call in tool_calls:
+            output = tool_call.get("output")
+            if not isinstance(output, dict):
+                continue
+
+            tool_name = tool_call.get("name", "unknown")
+            sanitized_output = self._sanitize_tool_output(tool_name, output)
+            if not sanitized_output:
+                continue
+
+            sanitized_args = self._sanitize_tool_args(tool_call.get("input"))
+
+            observation = ToolObservation(
+                tool_name=tool_name,
+                payload={
+                    "args": sanitized_args,
+                    "result": sanitized_output,
+                },
+            )
+
+            await self.redis.store_tool_observation(chat_id, observation)
+
+    def _sanitize_tool_args(self, args: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Strip sensitive or unnecessary fields from tool args before storage."""
+        if not isinstance(args, dict):
+            return {}
+        return {
+            key: value
+            for key, value in args.items()
+            if key not in {"user_id"}
+        }
+
+    def _sanitize_tool_output(
+        self, tool_name: str, output: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Retain only trustworthy portions of tool output for future use."""
+        if not output.get("success"):
+            return None
+
+        if tool_name in {"create_entry", "update_entry"}:
+            entry = output.get("entry")
+            if isinstance(entry, dict) and entry.get("id"):
+                sanitized_entry = self._filter_entry(entry)
+                return {"entry": sanitized_entry}
+
+        return None
+
+    def _filter_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract a safe subset of entry fields and add an alias for reference."""
+        allowed_fields = {
+            "id",
+            "description",
+            "direction",
+            "entry_date",
+            "category_id",
+            "amount_cents",
+            "amount",
+        }
+        sanitized = {
+            key: entry[key]
+            for key in allowed_fields
+            if key in entry
+        }
+
+        amount = sanitized.get("amount")
+        if amount is None and "amount_cents" in sanitized:
+            try:
+                sanitized["amount"] = float(sanitized["amount_cents"]) / 100
+            except (TypeError, ValueError):
+                pass
+
+        sanitized["alias"] = self._make_entry_alias(entry["id"])
+        sanitized["recorded_at"] = entry.get("entry_date")
+        return sanitized
+
+    def _make_entry_alias(self, entry_id: str) -> str:
+        """Create a deterministic alias for an entry ID that hides the raw UUID."""
+        digest = hashlib.sha256(entry_id.encode("utf-8")).hexdigest()
+        return f"entry_ref_{digest[:8]}"
+
+    def _render_private_context(
+        self, observations: List[ToolObservation]
+    ) -> Optional[str]:
+        """Render private memory for the agent while warning against leaking IDs."""
+        if not observations:
+            return None
+
+        lines = [
+            "PRIVATE_TOOL_CONTEXT:",
+            "Use these internal references for tool calls only.",
+            "Do not reveal entry IDs or aliases to the user.",
+        ]
+
+        for observation in observations[-5:]:
+            payload = observation.payload or {}
+            result = payload.get("result") or {}
+            entry = result.get("entry")
+            if not isinstance(entry, dict):
+                continue
+
+            alias = entry.get("alias", "entry_ref")
+            entry_id = entry.get("id")
+            description = entry.get("description", "No description")
+            direction = entry.get("direction", "unknown")
+            entry_date = entry.get("entry_date") or entry.get("recorded_at") or "unknown date"
+            amount = entry.get("amount")
+
+            amount_str = f"${amount:.2f}" if isinstance(amount, (int, float)) else "unknown amount"
+
+            lines.append(
+                f"- {alias}: {direction} {amount_str} for \"{description}\" on {entry_date} (entry_id={entry_id})"
+            )
+
+        if len(lines) <= 3:
+            return None
+
+        return "\n".join(lines)
 
     def _resolve_category_id_to_name(self, category_id: str) -> Optional[str]:
         """Resolve category_id to category name"""

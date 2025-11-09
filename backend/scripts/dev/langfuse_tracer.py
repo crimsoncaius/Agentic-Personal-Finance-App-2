@@ -840,24 +840,58 @@ class LangfuseTracerV3:
         actual_tool_calls = trace_summary.get("tool_calls", []) if trace_summary else []
 
         # Expected values
-        expected_tool_calls = expected.get("tool_calls", [])
+        expected_tool_calls = expected.get("tool_calls")
+        expected_tool_calls_by_turn = expected.get("tool_calls_by_turn")
         expected_has_entries = expected.get("has_entries", False)
 
         # Validate tool calls
-        tool_calls_match = set(expected_tool_calls) == set(actual_tool_calls)
+        if expected_tool_calls is not None:
+            tool_calls_match = set(expected_tool_calls) == set(actual_tool_calls)
+        else:
+            tool_calls_match = True
+
+        # Validate tool calls by turn (for multi-turn conversations)
+        actual_tool_calls_by_turn = None
+        tool_calls_by_turn_match = True
+        if expected_tool_calls_by_turn is not None:
+            trace_summaries_individual = result.get("trace_summaries_individual", [])
+            actual_tool_calls_by_turn = [
+                summary.get("tool_calls", []) if summary else []
+                for summary in trace_summaries_individual
+            ]
+
+            if len(actual_tool_calls_by_turn) != len(expected_tool_calls_by_turn):
+                tool_calls_by_turn_match = False
+            else:
+                for expected_turn_tools, actual_turn_tools in zip(
+                    expected_tool_calls_by_turn, actual_tool_calls_by_turn
+                ):
+                    if set(expected_turn_tools) != set(actual_turn_tools):
+                        tool_calls_by_turn_match = False
+                        break
 
         # Validate entries
         has_entries_match = expected_has_entries == actual_has_entries
 
         # Overall pass/fail
-        passed = tool_calls_match and has_entries_match and not result.get("error")
+        passed = (
+            tool_calls_match
+            and tool_calls_by_turn_match
+            and has_entries_match
+            and not result.get("error")
+        )
 
         validation = {
             "passed": passed,
             "tool_calls_match": tool_calls_match,
+            "tool_calls_by_turn_match": tool_calls_by_turn_match
+            if expected_tool_calls_by_turn is not None
+            else None,
             "has_entries_match": has_entries_match,
             "expected_tool_calls": expected_tool_calls,
             "actual_tool_calls": actual_tool_calls,
+            "expected_tool_calls_by_turn": expected_tool_calls_by_turn,
+            "actual_tool_calls_by_turn": actual_tool_calls_by_turn,
             "expected_has_entries": expected_has_entries,
             "actual_has_entries": actual_has_entries,
             "entry_count": len(actual_entries),

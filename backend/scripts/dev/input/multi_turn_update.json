@@ -1,0 +1,21 @@
+{
+  "queries": [
+    {
+      "id": "multi_turn_chicken_rice",
+      "description": "User records a meal expense, then corrects the amount in a follow-up turn.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "chicken rice for 5"
+        },
+        {
+          "role": "user",
+          "content": "no wait, 5.75 not 5"
+        }
+      ],
+      "expected_tool_calls_by_turn": [["create_entry"], ["update_entry"]],
+      "expected_tool_calls": ["create_entry", "update_entry"],
+      "expected_has_entries": true
+    }
+  ]
+}

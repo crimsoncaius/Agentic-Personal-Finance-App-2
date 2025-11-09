@@ -231,7 +231,7 @@ export default function ChatInterface({ onEntryCreated }: ChatInterfaceProps) {
             <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
               <span className="text-white text-sm">🤖</span>
             </div>
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold text-white">
               AI Assistant
             </h2>
           </div>

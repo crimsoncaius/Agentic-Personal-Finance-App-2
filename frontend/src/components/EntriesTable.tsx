@@ -190,7 +190,7 @@ export default function EntriesTable({ refreshTrigger }: EntriesTableProps) {
     <div className="bg-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-700/50 shadow-xl flex flex-col">
       <div className="p-6 border-b border-gray-700/50">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+          <h2 className="text-2xl font-bold text-white">
             Recent Entries
           </h2>
           <div className="text-sm text-gray-400">

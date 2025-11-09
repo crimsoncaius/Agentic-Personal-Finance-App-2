@@ -1,0 +1,16 @@
+{
+  "metadata": {
+    "batch_tag": "batch_20251109_163300",
+    "total_queries": 1,
+    "generated_at": "2025-11-09T16:33:38.556887",
+    "user_id": "595a675a-5f34-407f-b101-628ea0ef31ee"
+  },
+  "results": [
+    {
+      "query_id": "multi_turn_chicken_rice",
+      "query_text": "Multi-turn (2 messages)",
+      "trace_id": "75381b930e691319d35e87c8ff7b38b8",
+      "message": "I've recorded your expense of $5.75 for chicken rice today. Would you like to see any other transactions or need help with anything else?"
+    }
+  ]
+}

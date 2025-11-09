@@ -1,0 +1,297 @@
+{
+  "metadata": {
+    "batch_tag": "batch_20251109_163300",
+    "total_queries": 1,
+    "passed": 0,
+    "failed": 1,
+    "success_rate": "0.0%",
+    "generated_at": "2025-11-09T16:33:38.555232",
+    "user_id": "595a675a-5f34-407f-b101-628ea0ef31ee",
+    "wait_time_seconds": 30,
+    "total_execution_time_ms": 6701.98392868042,
+    "total_llm_calls": 3,
+    "total_tool_calls": 1,
+    "total_tokens": 11729,
+    "total_cost_usd": "$0.0009"
+  },
+  "results": [
+    {
+      "query_id": "multi_turn_chicken_rice",
+      "query_text": "Multi-turn (2 messages)",
+      "chat_id": "2e625c6a-0ad0-44c7-ac8b-f0fc871a3bb0",
+      "trace_id": "75381b930e691319d35e87c8ff7b38b8",
+      "trace_ids": [
+        "5624df703df099f7351cfd92bd8aac80",
+        "75381b930e691319d35e87c8ff7b38b8"
+      ],
+      "is_multi_turn": true,
+      "execution_time_ms": 6701.98392868042,
+      "result": {
+        "message": "I've recorded your expense of $5.75 for chicken rice today. Would you like to see any other transactions or need help with anything else?",
+        "entries": [
+          {
+            "id": "335ac1b3-c3d2-4a4f-bdc6-2ad8a9a70e28",
+            "amount_cents": 575,
+            "direction": "expense",
+            "entry_date": "2025-11-09",
+            "category_id": "0fffa4ef-06ab-404f-9527-9b09cf6a496a",
+            "description": "chicken rice",
+            "created_at": "2025-11-09T08:33:05.579059+00:00",
+            "updated_at": "2025-11-09T08:33:05.579059+00:00",
+            "user_id": "595a675a-5f34-407f-b101-628ea0ef31ee",
+            "amount": 5.75
+          }
+        ],
+        "chat_id": "2e625c6a-0ad0-44c7-ac8b-f0fc871a3bb0",
+        "trace_id": "75381b930e691319d35e87c8ff7b38b8"
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "text": "chicken rice for 5",
+          "result": {
+            "message": "How much did you spend on chicken rice? Please tell me the amount in dollars.",
+            "entries": [],
+            "chat_id": "2e625c6a-0ad0-44c7-ac8b-f0fc871a3bb0",
+            "trace_id": "5624df703df099f7351cfd92bd8aac80"
+          },
+          "trace_id": "5624df703df099f7351cfd92bd8aac80"
+        },
+        {
+          "turn": 2,
+          "text": "no wait, 5.75 not 5",
+          "result": {
+            "message": "I've recorded your expense of $5.75 for chicken rice today. Would you like to see any other transactions or need help with anything else?",
+            "entries": [
+              {
+                "id": "335ac1b3-c3d2-4a4f-bdc6-2ad8a9a70e28",
+                "amount_cents": 575,
+                "direction": "expense",
+                "entry_date": "2025-11-09",
+                "category_id": "0fffa4ef-06ab-404f-9527-9b09cf6a496a",
+                "description": "chicken rice",
+                "created_at": "2025-11-09T08:33:05.579059+00:00",
+                "updated_at": "2025-11-09T08:33:05.579059+00:00",
+                "user_id": "595a675a-5f34-407f-b101-628ea0ef31ee",
+                "amount": 5.75
+              }
+            ],
+            "chat_id": "2e625c6a-0ad0-44c7-ac8b-f0fc871a3bb0",
+            "trace_id": "75381b930e691319d35e87c8ff7b38b8"
+          },
+          "trace_id": "75381b930e691319d35e87c8ff7b38b8"
+        }
+      ],
+      "expected": {
+        "tool_calls": [
+          "create_entry",
+          "update_entry"
+        ],
+        "has_entries": true
+      },
+      "timestamp": "2025-11-09T16:33:07.358429",
+      "error": null,
+      "trace_summary": {
+        "trace_ids": [
+          "75381b930e691319d35e87c8ff7b38b8",
+          "5624df703df099f7351cfd92bd8aac80"
+        ],
+        "tool_calls": [
+          "create_entry"
+        ],
+        "tool_call_details": [
+          {
+            "tool_name": "create_entry",
+            "observation_name": "tool_create_entry",
+            "input": {
+              "tool_name": "create_entry",
+              "input": {
+                "amount": 5.75,
+                "direction": "expense",
+                "description": "chicken rice",
+                "category": "Food & Dining",
+                "entry_date": "2025-11-09"
+              }
+            },
+            "output": {
+              "tool_name": "create_entry",
+              "input": {
+                "amount": 5.75,
+                "direction": "expense",
+                "description": "chicken rice",
+                "category": "Food & Dining",
+                "entry_date": "2025-11-09"
+              },
+              "output": {
+                "success": true,
+                "entry": {
+                  "id": "335ac1b3-c3d2-4a4f-bdc6-2ad8a9a70e28",
+                  "amount_cents": 575,
+                  "direction": "expense",
+                  "entry_date": "2025-11-09",
+                  "category_id": "0fffa4ef-06ab-404f-9527-9b09cf6a496a",
+                  "description": "chicken rice",
+                  "created_at": "2025-11-09T08:33:05.579059+00:00",
+                  "updated_at": "2025-11-09T08:33:05.579059+00:00",
+                  "user_id": "595a675a-5f34-407f-b101-628ea0ef31ee",
+                  "amount": 5.75
+                },
+                "message": "Created expense of $5.75 for chicken rice"
+              },
+              "duration": null,
+              "error": null,
+              "status": "success",
+              "timestamp": "2025-11-09T16:33:07.142851",
+              "workflow_version": "v3"
+            }
+          }
+        ],
+        "llm_calls": 3,
+        "total_tokens": 11729,
+        "total_cost": 0.0009343999999999999,
+        "duration_seconds": 0,
+        "observations": [
+          {
+            "type": "SPAN",
+            "name": "nlp_query_processing_v3"
+          },
+          {
+            "type": "GENERATION",
+            "name": "ChatOpenAI"
+          },
+          {
+            "type": "SPAN",
+            "name": "tool_create_entry"
+          },
+          {
+            "type": "GENERATION",
+            "name": "ChatOpenAI"
+          },
+          {
+            "type": "SPAN",
+            "name": "nlp_query_processing_v3"
+          },
+          {
+            "type": "GENERATION",
+            "name": "ChatOpenAI"
+          }
+        ]
+      },
+      "trace_summaries_individual": [
+        {
+          "trace_id": "75381b930e691319d35e87c8ff7b38b8",
+          "duration_seconds": null,
+          "llm_calls": 2,
+          "tool_calls": [
+            "create_entry"
+          ],
+          "tool_call_details": [
+            {
+              "tool_name": "create_entry",
+              "observation_name": "tool_create_entry",
+              "input": {
+                "tool_name": "create_entry",
+                "input": {
+                  "amount": 5.75,
+                  "direction": "expense",
+                  "description": "chicken rice",
+                  "category": "Food & Dining",
+                  "entry_date": "2025-11-09"
+                }
+              },
+              "output": {
+                "tool_name": "create_entry",
+                "input": {
+                  "amount": 5.75,
+                  "direction": "expense",
+                  "description": "chicken rice",
+                  "category": "Food & Dining",
+                  "entry_date": "2025-11-09"
+                },
+                "output": {
+                  "success": true,
+                  "entry": {
+                    "id": "335ac1b3-c3d2-4a4f-bdc6-2ad8a9a70e28",
+                    "amount_cents": 575,
+                    "direction": "expense",
+                    "entry_date": "2025-11-09",
+                    "category_id": "0fffa4ef-06ab-404f-9527-9b09cf6a496a",
+                    "description": "chicken rice",
+                    "created_at": "2025-11-09T08:33:05.579059+00:00",
+                    "updated_at": "2025-11-09T08:33:05.579059+00:00",
+                    "user_id": "595a675a-5f34-407f-b101-628ea0ef31ee",
+                    "amount": 5.75
+                  },
+                  "message": "Created expense of $5.75 for chicken rice"
+                },
+                "duration": null,
+                "error": null,
+                "status": "success",
+                "timestamp": "2025-11-09T16:33:07.142851",
+                "workflow_version": "v3"
+              }
+            }
+          ],
+          "total_tokens": 7989,
+          "total_cost": 0.0005549999999999999,
+          "observations": [
+            {
+              "type": "SPAN",
+              "name": "nlp_query_processing_v3"
+            },
+            {
+              "type": "GENERATION",
+              "name": "ChatOpenAI"
+            },
+            {
+              "type": "SPAN",
+              "name": "tool_create_entry"
+            },
+            {
+              "type": "GENERATION",
+              "name": "ChatOpenAI"
+            }
+          ]
+        },
+        {
+          "trace_id": "5624df703df099f7351cfd92bd8aac80",
+          "duration_seconds": null,
+          "llm_calls": 1,
+          "tool_calls": [],
+          "tool_call_details": [],
+          "total_tokens": 3740,
+          "total_cost": 0.0003794,
+          "observations": [
+            {
+              "type": "SPAN",
+              "name": "nlp_query_processing_v3"
+            },
+            {
+              "type": "GENERATION",
+              "name": "ChatOpenAI"
+            }
+          ]
+        }
+      ],
+      "validation": {
+        "passed": false,
+        "tool_calls_match": false,
+        "tool_calls_by_turn_match": null,
+        "has_entries_match": true,
+        "expected_tool_calls": [
+          "create_entry",
+          "update_entry"
+        ],
+        "actual_tool_calls": [
+          "create_entry"
+        ],
+        "expected_tool_calls_by_turn": null,
+        "actual_tool_calls_by_turn": null,
+        "expected_has_entries": true,
+        "actual_has_entries": true,
+        "entry_count": 1,
+        "error": null
+      }
+    }
+  ]
+}

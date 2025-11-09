@@ -48,6 +48,47 @@ class ChatMessage:
         return cls.from_dict(json.loads(json_str))
 
 
+class ToolObservation:
+    """Structured representation of a tool call output stored privately."""
+
+    def __init__(
+        self,
+        tool_name: str,
+        payload: Dict,
+        timestamp: float = None,
+        message_id: Optional[str] = None,
+    ):
+        self.tool_name = tool_name
+        self.payload = payload
+        self.timestamp = timestamp or time.time()
+        # message_id can be used to correlate with message ordering
+        self.message_id = message_id or str(uuid4())
+
+    def to_dict(self) -> Dict:
+        return {
+            "tool_name": self.tool_name,
+            "payload": self.payload,
+            "timestamp": self.timestamp,
+            "message_id": self.message_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "ToolObservation":
+        return cls(
+            tool_name=data["tool_name"],
+            payload=data.get("payload", {}),
+            timestamp=data.get("timestamp"),
+            message_id=data.get("message_id"),
+        )
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "ToolObservation":
+        return cls.from_dict(json.loads(json_str))
+
+
 class RedisService:
     """Service for managing conversation history in Redis"""
 
@@ -90,6 +131,10 @@ class RedisService:
         """Generate Redis key for chat conversation"""
         return f"chat:{chat_id}:messages"
 
+    def _get_tool_key(self, chat_id: str) -> str:
+        """Generate Redis key for stored tool observations"""
+        return f"chat:{chat_id}:tools"
+
     async def store_message(
         self, chat_id: str, role: str, content: str, ttl: Optional[int] = None
     ) -> bool:
@@ -127,6 +172,38 @@ class RedisService:
             print(f"Failed to store message in Redis: {str(e)}")
             return False
 
+    async def store_tool_observation(
+        self,
+        chat_id: str,
+        observation: ToolObservation,
+        ttl: Optional[int] = None,
+    ) -> bool:
+        """
+        Store a private tool observation for the conversation.
+
+        Args:
+            chat_id: Unique chat identifier
+            observation: ToolObservation payload to store
+            ttl: Time to live in seconds (default from settings)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            key = self._get_tool_key(chat_id)
+            self.client.zadd(
+                key, {observation.to_json(): observation.timestamp}, nx=False
+            )
+            expire_time = ttl or self.ttl
+            self.client.expire(key, expire_time)
+            return True
+        except (RedisError, Exception) as e:
+            print(f"Failed to store tool observation in Redis: {str(e)}")
+            return False
+
     async def get_conversation_history(
         self, chat_id: str, limit: Optional[int] = None
     ) -> List[ChatMessage]:
@@ -162,6 +239,36 @@ class RedisService:
             print(f"Failed to retrieve conversation history from Redis: {str(e)}")
             return []
 
+    async def get_tool_observations(
+        self, chat_id: str, limit: Optional[int] = None
+    ) -> List[ToolObservation]:
+        """
+        Retrieve stored tool observations for a conversation.
+
+        Args:
+            chat_id: Unique chat identifier
+            limit: Maximum number of observations to return
+
+        Returns:
+            List of ToolObservation objects ordered from oldest to newest.
+        """
+        if not self.enabled:
+            return []
+
+        try:
+            key = self._get_tool_key(chat_id)
+            observation_limit = limit or self.history_limit
+            observations_json = self.client.zrange(key, -observation_limit, -1)
+
+            observations = [
+                ToolObservation.from_json(obs_json) for obs_json in observations_json
+            ]
+
+            return observations
+        except (RedisError, Exception) as e:
+            print(f"Failed to retrieve tool observations from Redis: {str(e)}")
+            return []
+
     async def clear_conversation(self, chat_id: str) -> bool:
         """
         Clear all messages for a conversation
@@ -177,7 +284,9 @@ class RedisService:
 
         try:
             key = self._get_key(chat_id)
+            tool_key = self._get_tool_key(chat_id)
             self.client.delete(key)
+            self.client.delete(tool_key)
             return True
 
         except (RedisError, Exception) as e:
@@ -200,14 +309,16 @@ class RedisService:
 
         try:
             key = self._get_key(chat_id)
+            tool_key = self._get_tool_key(chat_id)
             expire_time = ttl or self.ttl
 
             # Only extend if key exists
             if self.client.exists(key):
                 self.client.expire(key, expire_time)
-                return True
+            if self.client.exists(tool_key):
+                self.client.expire(tool_key, expire_time)
 
-            return False
+            return bool(self.client.exists(key) or self.client.exists(tool_key))
 
         except (RedisError, Exception) as e:
             print(f"Failed to extend TTL in Redis: {str(e)}")
@@ -228,7 +339,8 @@ class RedisService:
 
         try:
             key = self._get_key(chat_id)
-            return bool(self.client.exists(key))
+            tool_key = self._get_tool_key(chat_id)
+            return bool(self.client.exists(key) or self.client.exists(tool_key))
 
         except (RedisError, Exception) as e:
             print(f"Failed to check conversation existence in Redis: {str(e)}")
